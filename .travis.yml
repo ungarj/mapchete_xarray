@@ -9,7 +9,8 @@ before_install:
   - sudo apt-get -y update
   - sudo apt-get install -y gdal-bin python-tk libopenjpeg-dev libgdal-dev
   - pip install numpy cython
-  - 'pip install fiona rasterio --no-binary :all:'
+  - 'pip install fiona rasterio netcdf4 --no-binary :all:'
+  - if [ $MAPCHETE_VERSION == "master" ]; then pip install git+https://github.com/ungarj/mapchete.git@master#egg=mapchete; else pip install mapchete==$MAPCHETE_VERSION --no-binary :all:; fi;
   - export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 install:
   - pip install -e .
@@ -18,3 +19,7 @@ script:
   - pytest --cov=mapchete_xarray -v
 after_success:
   - coveralls
+env:
+  matrix:
+    - MAPCHETE_VERSION="0.28"
+    - MAPCHETE_VERSION="master"
