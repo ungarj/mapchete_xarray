@@ -1,0 +1,12 @@
+process: xarray_input.py
+zoom_levels:
+    min: 0
+    max: 12
+input: /some/xarray_output/path
+output:
+    format: GTiff
+    path: /some/output/path
+    bands: 3
+    dtype: uint16
+pyramid:
+    grid: geodetic

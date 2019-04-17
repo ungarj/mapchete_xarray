@@ -1,11 +1,9 @@
 import logging
 from mapchete.config import validate_values
 from mapchete.formats import base
-from mapchete.io import makedirs
 from mapchete.io.raster import extract_from_array
 from mapchete.tile import BufferedTile
 import numpy as np
-import os
 import xarray as xr
 
 
@@ -64,26 +62,6 @@ class OutputData(base.OutputData):
             empty xarray
         """
         return xr.DataArray([])
-
-    def get_path(self, tile):
-        """
-        Determine target file path.
-
-        Parameters
-        ----------
-        tile : ``BufferedTile``
-            must be member of output ``TilePyramid``
-
-        Returns
-        -------
-        path : string
-        """
-        return os.path.join(*[
-            self.path,
-            str(tile.zoom),
-            str(tile.row),
-            str(tile.col) + self.file_extension
-        ])
 
     def output_is_valid(self, process_data):
         """
@@ -144,17 +122,6 @@ class OutputData(base.OutputData):
                 logger.debug("write output to %s", out_path)
                 out_xarr.to_netcdf(out_path)
 
-    def prepare_path(self, tile):
-        """
-        Create directory and subdirectory if necessary.
-
-        Parameters
-        ----------
-        tile : ``BufferedTile``
-            must be member of output ``TilePyramid``
-        """
-        makedirs(os.path.dirname(self.get_path(tile)))
-
     def read(self, output_tile, **kwargs):
         """
         Read existing process output.
@@ -169,10 +136,89 @@ class OutputData(base.OutputData):
         NumPy array
         """
         try:
-            return xr.open_dataarray(self.get_path(output_tile))
+            xarr = xr.open_dataarray(self.get_path(output_tile))
+            print(xarr)
+            return xarr
         except FileNotFoundError:
             return self.empty(output_tile)
 
+    def _read_as_tiledir(
+        self,
+        out_tile=None,
+        td_crs=None,
+        tiles_paths=None,
+        profile=None,
+        validity_check=False,
+        indexes=None,
+        resampling=None,
+        dst_nodata=None,
+        gdal_opts=None,
+        **kwargs
+    ):
+        """
+        Read reprojected & resampled input data.
+
+        Parameters
+        ----------
+        validity_check : bool
+            vector file: also run checks if reprojected geometry is valid,
+            otherwise throw RuntimeError (default: True)
+
+        indexes : list or int
+            raster file: a list of band numbers; None will read all.
+        dst_nodata : int or float, optional
+            raster file: if not set, the nodata value from the source dataset
+            will be used
+        gdal_opts : dict
+            raster file: GDAL options passed on to rasterio.Env()
+
+        Returns
+        -------
+        data : list for vector files or numpy array for raster files
+        """
+        if td_crs != out_tile.tp.crs:
+            raise NotImplementedError(
+                "reprojection of xarray tile directory output is not yet implemented"
+            )
+        source_tile = tiles_paths[0][0]
+        if source_tile.tp.grid != out_tile.tp.grid:
+            raise NotImplementedError(
+                "xarray tile directory must have same grid as process pyramid"
+            )
+        return self.read(source_tile)
+
 
 class InputTile(base.InputTile):
-    pass
+    """
+    Target Tile representation of input data.
+
+    Parameters
+    ----------
+    tile : ``Tile``
+    kwargs : keyword arguments
+        driver specific parameters
+    """
+
+    def __init__(self, tile, **kwargs):
+        """Initialize."""
+
+    def read(self, **kwargs):
+        """
+        Read reprojected & resampled input data.
+
+        Returns
+        -------
+        data : array or list
+            NumPy array for raster data or feature list for vector data
+        """
+        raise NotImplementedError
+
+    def is_empty(self):
+        """
+        Check if there is data within this tile.
+
+        Returns
+        -------
+        is empty : bool
+        """
+        raise NotImplementedError

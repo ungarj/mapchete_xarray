@@ -23,3 +23,13 @@ def example_config():
         config = _dict_from_mapchete(path)
         config["output"].update(path=temp_dir)
         yield config
+
+
+@pytest.fixture
+def xarray_tiledir_input_mapchete():
+    """Fixture for example.mapchete."""
+    with TemporaryDirectory() as temp_dir:
+        path = os.path.join(TESTDATA_DIR, "xarray_tiledir_input.mapchete")
+        config = _dict_from_mapchete(path)
+        config["output"].update(path=temp_dir)
+        yield config
