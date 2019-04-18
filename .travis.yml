@@ -21,5 +21,5 @@ after_success:
   - coveralls
 env:
   matrix:
-    - MAPCHETE_VERSION="0.28"
+    #- MAPCHETE_VERSION="0.28"
     - MAPCHETE_VERSION="master"
