@@ -1,7 +1,7 @@
 import logging
 from mapchete.config import validate_values
 from mapchete.formats import base
-from mapchete.io.raster import extract_from_array
+from mapchete.io.raster import create_mosaic, extract_from_array
 from mapchete.tile import BufferedTile
 import numpy as np
 import xarray as xr
@@ -17,6 +17,8 @@ METADATA = {
 
 
 class OutputData(base.OutputData):
+
+    METADATA = METADATA
 
     def __init__(self, output_params, **kwargs):
         """Initialize."""
@@ -109,8 +111,8 @@ class OutputData(base.OutputData):
             out_tile = BufferedTile(out_tile, self.pixelbuffer)
             out_path = self.get_path(out_tile)
             self.prepare_path(out_tile)
-            out_xarr = xr.DataArray(
-                extract_from_array(
+            out_xarr = data.copy(
+                data=extract_from_array(
                     in_raster=data.data,
                     in_affine=process_tile.affine,
                     out_tile=out_tile
@@ -137,10 +139,43 @@ class OutputData(base.OutputData):
         """
         try:
             xarr = xr.open_dataarray(self.get_path(output_tile))
-            print(xarr)
             return xarr
         except FileNotFoundError:
             return self.empty(output_tile)
+
+    def open(self, tile, process, **kwargs):
+        """
+        Open process output as input for other process.
+
+        Parameters
+        ----------
+        tile : ``Tile``
+        process : ``MapcheteProcess``
+        kwargs : keyword arguments
+        """
+        return InputTile(tile, process)
+
+    def extract_subset(self, input_data_tiles=None, out_tile=None):
+        """
+        Extract subset from multiple tiles.
+
+        input_data_tiles : list of (``Tile``, process data) tuples
+        out_tile : ``Tile``
+
+        Returns
+        -------
+        NumPy array or list of features.
+        """
+        mosaic = create_mosaic([
+            (i[0], i[1].data)
+            for i in input_data_tiles
+        ])
+        data_subset = extract_from_array(
+            in_raster=mosaic.data,
+            in_affine=mosaic.affine,
+            out_tile=out_tile
+        )
+        return input_data_tiles[0][1].copy(data=data_subset)
 
     def _read_as_tiledir(
         self,
@@ -199,8 +234,10 @@ class InputTile(base.InputTile):
         driver specific parameters
     """
 
-    def __init__(self, tile, **kwargs):
+    def __init__(self, tile, process, **kwargs):
         """Initialize."""
+        self.tile = tile
+        self.process = process
 
     def read(self, **kwargs):
         """
@@ -211,7 +248,9 @@ class InputTile(base.InputTile):
         data : array or list
             NumPy array for raster data or feature list for vector data
         """
-        raise NotImplementedError
+        herbert = self.process.get_raw_output(self.tile)
+        print(herbert)
+        return herbert
 
     def is_empty(self):
         """
@@ -221,4 +260,5 @@ class InputTile(base.InputTile):
         -------
         is empty : bool
         """
-        raise NotImplementedError
+        # empty if tile does not intersect with file bounding box
+        return not self.tile.bbox.intersects(self.process.config.area_at_zoom())

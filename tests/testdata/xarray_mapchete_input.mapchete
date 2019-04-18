@@ -3,7 +3,7 @@ zoom_levels:
     min: 0
     max: 12
 input:
-    xarray_output: /some/xarray_output/path
+    xarray_output: /some/mapchete/path
 output:
     format: GTiff
     path: /some/output/path
