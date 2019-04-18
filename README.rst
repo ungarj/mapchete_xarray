@@ -42,6 +42,14 @@ Installation
     mapchete formats
 
 
+Current Limitations
+-------------------
+
+- no reprojection allowed
+- when reading from existing output, process metatiling must be smaller than xarray output metatiling
+- only writing to NetCDF files currently implemented
+
+
 License
 -------
 
