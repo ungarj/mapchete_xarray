@@ -112,18 +112,15 @@ class OutputData(base.OutputData):
             out_tile = BufferedTile(out_tile, self.pixelbuffer)
             out_path = self.get_path(out_tile)
             self.prepare_path(out_tile)
-            out_xarr = xr.DataArray(
-                data=extract_from_array(
+            out_xarr = _dataarray_copy_metadata(
+                base_darr=data,
+                new_data=extract_from_array(
                     in_raster=data.data,
                     in_affine=process_tile.affine,
                     out_tile=out_tile
-                ),
-                coords=data.coords,
-                dims=data.dims,
-                name=data.name,
-                attrs=data.attrs
+                )
             )
-            if np.where(data.data == self.nodata, True, False).all():
+            if np.where(out_xarr.data == self.nodata, True, False).all():
                 logger.debug("output tile data empty, nothing to write")
             else:
                 logger.debug("write output to %s", out_path)
@@ -174,16 +171,12 @@ class OutputData(base.OutputData):
             raise MapcheteConfigError(
                 "process metatiling must be smaller than xarray output metatiling"
             )
-        data_subset = extract_from_array(
-            in_raster=create_mosaic([(i[0], i[1].data) for i in input_data_tiles]),
-            out_tile=out_tile
-        )
-        return xr.DataArray(
-            data=data_subset,
-            coords=input_data_tiles[0][1].coords,
-            dims=input_data_tiles[0][1].dims,
-            name=input_data_tiles[0][1].name,
-            attrs=input_data_tiles[0][1].attrs
+        return _dataarray_copy_metadata(
+            base_darr=input_data_tiles[0][1],
+            new_data=extract_from_array(
+                in_raster=create_mosaic([(i[0], i[1].data) for i in input_data_tiles]),
+                out_tile=out_tile
+            )
         )
 
     def _read_as_tiledir(
@@ -266,3 +259,13 @@ class InputTile(base.InputTile):
         is empty : bool
         """
         return not self.tile.bbox.intersects(self.process.config.area_at_zoom())
+
+
+def _dataarray_copy_metadata(base_darr=None, new_data=None):
+    return xr.DataArray(
+        data=new_data,
+        coords=base_darr.coords,
+        dims=base_darr.dims,
+        name=base_darr.name,
+        attrs=base_darr.attrs
+    )
