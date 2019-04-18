@@ -9,5 +9,6 @@ output:
     path: /some/output/path
     bands: 3
     dtype: uint16
+    metatiling: 1
 pyramid:
     grid: geodetic

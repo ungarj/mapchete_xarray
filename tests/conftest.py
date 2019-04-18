@@ -51,13 +51,18 @@ def written_output():
 
 @pytest.fixture
 def example_config():
-    """Fixture for example.mapchete."""
     yield from _tempdir_mapchete(os.path.join(TESTDATA_DIR, "example.mapchete"))
 
 
 @pytest.fixture
 def xarray_tiledir_input_mapchete():
-    """Fixture for example.mapchete."""
     yield from _tempdir_mapchete(
         os.path.join(TESTDATA_DIR, "xarray_tiledir_input.mapchete")
+    )
+
+
+@pytest.fixture
+def xarray_mapchete_input_mapchete():
+    yield from _tempdir_mapchete(
+        os.path.join(TESTDATA_DIR, "xarray_mapchete_input.mapchete")
     )

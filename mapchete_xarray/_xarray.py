@@ -1,5 +1,6 @@
 import logging
 from mapchete.config import validate_values
+from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
 from mapchete.io.raster import create_mosaic, extract_from_array
 from mapchete.tile import BufferedTile
@@ -111,12 +112,16 @@ class OutputData(base.OutputData):
             out_tile = BufferedTile(out_tile, self.pixelbuffer)
             out_path = self.get_path(out_tile)
             self.prepare_path(out_tile)
-            out_xarr = data.copy(
+            out_xarr = xr.DataArray(
                 data=extract_from_array(
                     in_raster=data.data,
                     in_affine=process_tile.affine,
                     out_tile=out_tile
-                )
+                ),
+                coords=data.coords,
+                dims=data.dims,
+                name=data.name,
+                attrs=data.attrs
             )
             if np.where(data.data == self.nodata, True, False).all():
                 logger.debug("output tile data empty, nothing to write")
@@ -138,8 +143,7 @@ class OutputData(base.OutputData):
         NumPy array
         """
         try:
-            xarr = xr.open_dataarray(self.get_path(output_tile))
-            return xarr
+            return xr.open_dataarray(self.get_path(output_tile))
         except FileNotFoundError:
             return self.empty(output_tile)
 
@@ -166,16 +170,21 @@ class OutputData(base.OutputData):
         -------
         NumPy array or list of features.
         """
-        mosaic = create_mosaic([
-            (i[0], i[1].data)
-            for i in input_data_tiles
-        ])
+        if input_data_tiles[0][0].tp.metatiling < out_tile.tp.metatiling:
+            raise MapcheteConfigError(
+                "process metatiling must be smaller than xarray output metatiling"
+            )
         data_subset = extract_from_array(
-            in_raster=mosaic.data,
-            in_affine=mosaic.affine,
+            in_raster=create_mosaic([(i[0], i[1].data) for i in input_data_tiles]),
             out_tile=out_tile
         )
-        return input_data_tiles[0][1].copy(data=data_subset)
+        return xr.DataArray(
+            data=data_subset,
+            coords=input_data_tiles[0][1].coords,
+            dims=input_data_tiles[0][1].dims,
+            name=input_data_tiles[0][1].name,
+            attrs=input_data_tiles[0][1].attrs
+        )
 
     def _read_as_tiledir(
         self,
@@ -198,7 +207,6 @@ class OutputData(base.OutputData):
         validity_check : bool
             vector file: also run checks if reprojected geometry is valid,
             otherwise throw RuntimeError (default: True)
-
         indexes : list or int
             raster file: a list of band numbers; None will read all.
         dst_nodata : int or float, optional
@@ -211,16 +219,15 @@ class OutputData(base.OutputData):
         -------
         data : list for vector files or numpy array for raster files
         """
-        if td_crs != out_tile.tp.crs:
-            raise NotImplementedError(
-                "reprojection of xarray tile directory output is not yet implemented"
-            )
         source_tile = tiles_paths[0][0]
         if source_tile.tp.grid != out_tile.tp.grid:
-            raise NotImplementedError(
+            raise MapcheteConfigError(
                 "xarray tile directory must have same grid as process pyramid"
             )
-        return self.read(source_tile)
+        return self.extract_subset(
+            input_data_tiles=[(tile, self.read(tile)) for tile, _ in tiles_paths],
+            out_tile=out_tile
+        )
 
 
 class InputTile(base.InputTile):
@@ -248,9 +255,7 @@ class InputTile(base.InputTile):
         data : array or list
             NumPy array for raster data or feature list for vector data
         """
-        herbert = self.process.get_raw_output(self.tile)
-        print(herbert)
-        return herbert
+        return self.process.get_raw_output(self.tile)
 
     def is_empty(self):
         """
@@ -260,5 +265,4 @@ class InputTile(base.InputTile):
         -------
         is empty : bool
         """
-        # empty if tile does not intersect with file bounding box
         return not self.tile.bbox.intersects(self.process.config.area_at_zoom())

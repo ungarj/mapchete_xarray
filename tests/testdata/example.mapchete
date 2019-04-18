@@ -10,3 +10,4 @@ output:
     dtype: uint16
 pyramid:
     grid: geodetic
+    metatiling: 2
