@@ -42,13 +42,7 @@ class OutputData(base.OutputData):
         -------
         is_valid : bool
         """
-        return validate_values(
-            config, [
-                ("bands", int),
-                ("path", str),
-                ("dtype", str)
-            ]
-        )
+        return validate_values(config, [("path", str)])
 
     def empty(self, process_tile):
         """
