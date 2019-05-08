@@ -3,6 +3,11 @@ Changelog
 #########
 
 ---
+0.2
+---
+* enable netCDF compression
+
+---
 0.1
 ---
 
