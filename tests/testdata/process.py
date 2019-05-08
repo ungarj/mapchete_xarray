@@ -7,7 +7,7 @@ def execute(mp, stack_height=10):
     # create 4D arrays with current tile shape and dtype
     arrs = [
         np.ones(
-            (mp.config.output.output_params["bands"], ) + mp.tile.shape,
+            (3, ) + mp.tile.shape,
             dtype=mp.config.output.output_params["dtype"]
         )
         for _ in range(1, stack_height)

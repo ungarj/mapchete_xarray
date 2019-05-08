@@ -24,10 +24,10 @@ class OutputData(base.OutputData):
     def __init__(self, output_params, **kwargs):
         """Initialize."""
         super(OutputData, self).__init__(output_params)
-        self.file_extension = ".nc"
         self.path = output_params["path"]
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)
+        self.file_extension = ".nc"
 
     def is_valid_with_config(self, config):
         """
@@ -106,7 +106,7 @@ class OutputData(base.OutputData):
             out_tile = BufferedTile(out_tile, self.pixelbuffer)
             out_path = self.get_path(out_tile)
             self.prepare_path(out_tile)
-            out_xarr = _dataarray_copy_metadata(
+            out_xarr = _copy_metadata(
                 base_darr=data,
                 new_data=extract_from_array(
                     in_raster=data.data,
@@ -118,7 +118,9 @@ class OutputData(base.OutputData):
                 logger.debug("output tile data empty, nothing to write")
             else:
                 logger.debug("write output to %s", out_path)
-                out_xarr.to_netcdf(out_path)
+                out_xarr.to_dataset(name="data").to_netcdf(
+                    out_path, encoding={"data": self._get_encoding()}
+                )
 
     def read(self, output_tile, **kwargs):
         """
@@ -134,7 +136,7 @@ class OutputData(base.OutputData):
         NumPy array
         """
         try:
-            return xr.open_dataarray(self.get_path(output_tile))
+            return xr.open_dataset(self.get_path(output_tile))["data"]
         except FileNotFoundError:
             return self.empty(output_tile)
 
@@ -165,7 +167,7 @@ class OutputData(base.OutputData):
             raise MapcheteConfigError(
                 "process metatiling must be smaller than xarray output metatiling"
             )
-        return _dataarray_copy_metadata(
+        return _copy_metadata(
             base_darr=input_data_tiles[0][1],
             new_data=extract_from_array(
                 in_raster=create_mosaic([(i[0], i[1].data) for i in input_data_tiles]),
@@ -216,6 +218,14 @@ class OutputData(base.OutputData):
             out_tile=out_tile
         )
 
+    def _get_encoding(self):
+        return dict(
+            zlib=self.output_params.get("zlib", True),
+            complevel=self.output_params.get("complevel", 4),
+            shuffle=self.output_params.get("shuffle", True),
+            fletcher32=self.output_params.get("fletcher32", False),
+        )
+
 
 class InputTile(base.InputTile):
     """
@@ -255,7 +265,7 @@ class InputTile(base.InputTile):
         return not self.tile.bbox.intersects(self.process.config.area_at_zoom())
 
 
-def _dataarray_copy_metadata(base_darr=None, new_data=None):
+def _copy_metadata(base_darr=None, new_data=None):
     return xr.DataArray(
         data=new_data,
         coords=base_darr.coords,

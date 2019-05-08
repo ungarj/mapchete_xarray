@@ -6,8 +6,8 @@ input:
 output:
     format: xarray
     path: /some/output/path
-    bands: 3
     dtype: uint16
+    bands: 3
 pyramid:
     grid: geodetic
     metatiling: 2
