@@ -17,13 +17,13 @@ METADATA = {
 }
 
 
-class OutputData(base.OutputData):
+class OutputDataWriter(base.TileDirectoryOutputWriter):
 
     METADATA = METADATA
 
     def __init__(self, output_params, **kwargs):
         """Initialize."""
-        super(OutputData, self).__init__(output_params)
+        super(OutputDataWriter, self).__init__(output_params)
         self.path = output_params["path"]
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)

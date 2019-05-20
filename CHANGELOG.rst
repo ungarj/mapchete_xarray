@@ -6,6 +6,7 @@ Changelog
 0.2
 ---
 * enable netCDF compression
+* adapted to updated mapchete driver interface
 
 ---
 0.1

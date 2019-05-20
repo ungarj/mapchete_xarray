@@ -6,10 +6,7 @@ import xarray as xr
 def execute(mp, stack_height=10):
     # create 4D arrays with current tile shape and dtype
     arrs = [
-        np.ones(
-            (3, ) + mp.tile.shape,
-            dtype=mp.config.output.output_params["dtype"]
-        )
+        np.ones((3, ) + mp.tile.shape, dtype="uint16")
         for _ in range(1, stack_height)
     ]
 

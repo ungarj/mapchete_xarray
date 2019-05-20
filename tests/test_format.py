@@ -62,12 +62,13 @@ def test_read_from_tile_directory(xarray_tiledir_input_mapchete, written_output)
         )
     ) as mp:
         data_tile = mp.config.process_pyramid.tile(5, 0, 0)
-        mp_tile = mapchete.MapcheteProcess(
-            mp.config.process_pyramid.tile(*data_tile.id),
-            config=mp.config,
-            params=mp.config.params_at_zoom(5)
+        tile = mp.config.process_pyramid.tile(5, 0, 0)
+        user_process = mapchete.MapcheteProcess(
+            tile=tile,
+            params=mp.config.params_at_zoom(tile.zoom),
+            input=mp.config.get_inputs_for_tile(tile),
         )
-        xarr_tile = mp_tile.open("xarray_output")
+        xarr_tile = user_process.open("xarray_output")
         assert not xarr_tile.is_empty()
         xarr = xarr_tile.read()
         assert isinstance(xarr, xr.DataArray)
@@ -84,10 +85,11 @@ def test_read_from_tile_directory(xarray_tiledir_input_mapchete, written_output)
         )
     ) as mp:
         with pytest.raises(MapcheteConfigError):
-            mapchete.MapcheteProcess(
-                mp.config.process_pyramid.tile(5, 0, 0),
-                config=mp.config,
-                params=mp.config.params_at_zoom(5)
+            tile = mp.config.process_pyramid.tile(5, 0, 0)
+            user_process = mapchete.MapcheteProcess(
+                tile=tile,
+                params=mp.config.params_at_zoom(tile.zoom),
+                input=mp.config.get_inputs_for_tile(tile),
             ).open("xarray_output").read()
 
 
@@ -101,10 +103,11 @@ def test_tile_directory_grid_error(xarray_tiledir_input_mapchete, written_output
         )
     ) as mp:
         with pytest.raises(MapcheteConfigError):
+            tile = mp.config.process_pyramid.tile(5, 0, 0)
             mapchete.MapcheteProcess(
-                mp.config.process_pyramid.tile(5, 0, 0),
-                config=mp.config,
-                params=mp.config.params_at_zoom(5)
+                tile=tile,
+                params=mp.config.params_at_zoom(tile.zoom),
+                input=mp.config.get_inputs_for_tile(tile),
             ).open("xarray_output").read()
 
 
@@ -116,19 +119,19 @@ def test_read_from_mapchete_output(xarray_mapchete_input_mapchete, written_outpu
             input=dict(xarray_output=written_output.path)
         )
     ) as mp:
-        data_tile = mp.config.process_pyramid.tile(5, 0, 0)
-        mp_tile = mapchete.MapcheteProcess(
-            mp.config.process_pyramid.tile(*data_tile.id),
-            config=mp.config,
-            params=mp.config.params_at_zoom(5)
+        tile = mp.config.process_pyramid.tile(5, 0, 0)
+        user_process = mapchete.MapcheteProcess(
+            tile=tile,
+            params=mp.config.params_at_zoom(tile.zoom),
+            input=mp.config.get_inputs_for_tile(tile),
         )
-        xarr_tile = mp_tile.open("xarray_output")
+        xarr_tile = user_process.open("xarray_output")
         assert not xarr_tile.is_empty()
         xarr = xarr_tile.read()
         assert isinstance(xarr, xr.DataArray)
         assert xarr.data.all()
         assert ('time', 'bands', 'x', 'y') == xarr.dims
-        assert xarr.data.shape[-2:] == data_tile.shape
+        assert xarr.data.shape[-2:] == tile.shape
 
     # raise error if process metatiling is bigger than output metatiling
     with mapchete.open(
@@ -139,8 +142,9 @@ def test_read_from_mapchete_output(xarray_mapchete_input_mapchete, written_outpu
         )
     ) as mp:
         with pytest.raises(MapcheteConfigError):
-            mapchete.MapcheteProcess(
-                mp.config.process_pyramid.tile(5, 0, 0),
-                config=mp.config,
-                params=mp.config.params_at_zoom(5)
+            tile = mp.config.process_pyramid.tile(5, 0, 0)
+            user_process = mapchete.MapcheteProcess(
+                tile=tile,
+                params=mp.config.params_at_zoom(tile.zoom),
+                input=mp.config.get_inputs_for_tile(tile),
             ).open("xarray_output").read()

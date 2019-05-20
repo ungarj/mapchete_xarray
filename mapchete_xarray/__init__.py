@@ -1,4 +1,4 @@
-from mapchete_xarray._xarray import InputTile, METADATA, OutputData
+from mapchete_xarray._xarray import InputTile, METADATA, OutputDataWriter
 
-__all__ = ["InputTile", "METADATA", "OutputData"]
+__all__ = ["InputTile", "METADATA", "OutputDataWriter"]
 __version__ = "0.2"
