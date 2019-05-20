@@ -1,3 +1,4 @@
+===============
 mapchete xarray
 ===============
 
@@ -17,20 +18,59 @@ This driver enables mapchete to write multidimensional arrays into a tile direct
 
 
 
+-----
 Usage
 -----
 
 Example ``.mapchete`` file:
 
-.. include:: tests/testdata/example.mapchete
-    :code: yaml
+.. code-block:: yaml
+
+    process: process.py
+    zoom_levels:
+        min: 0
+        max: 12
+    input:
+    output:
+        format: xarray
+        path: /some/output/path
+        dtype: uint16
+        bands: 3
+    pyramid:
+        grid: geodetic
+        metatiling: 2
+
+
 
 Example process file:
 
-.. include:: tests/testdata/process.py
-    :code: python
+.. code-block:: python
+
+    from dateutil import parser
+    import numpy as np
+    import xarray as xr
 
 
+    def execute(mp, stack_height=10):
+        # create 4D arrays with current tile shape and dtype
+        arrs = [
+            np.ones((3, ) + mp.tile.shape, dtype="uint16")
+            for _ in range(1, stack_height)
+        ]
+
+        # create timestamps for each array
+        timestamps = [parser.parse("2018-04-0%s" % i) for i in range(1, stack_height)]
+
+        # build xarray with time axis
+        timeseries = xr.DataArray(
+            np.stack(arrs), coords={'time': timestamps}, dims=('time', 'bands', 'x', 'y')
+        )
+
+        # return to write
+        return timeseries
+
+
+------------
 Installation
 ------------
 
@@ -42,6 +82,7 @@ Installation
     mapchete formats
 
 
+-------------------
 Current Limitations
 -------------------
 
@@ -50,6 +91,7 @@ Current Limitations
 - only writing to NetCDF files currently implemented
 
 
+-------
 License
 -------
 
