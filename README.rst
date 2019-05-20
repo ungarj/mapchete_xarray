@@ -4,8 +4,8 @@ mapchete xarray
 
 This driver enables mapchete to write multidimensional arrays into a tile directory structure.
 
-.. image:: https://badge.fury.io/py/mapchete_xarray.svg
-    :target: https://badge.fury.io/py/mapchete_xarray
+.. image:: https://badge.fury.io/py/mapchete-xarray.svg
+    :target: https://badge.fury.io/py/mapchete-xarray
 
 .. image:: https://travis-ci.org/ungarj/mapchete_xarray.svg?branch=master
     :target: https://travis-ci.org/ungarj/mapchete_xarray
