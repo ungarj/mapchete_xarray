@@ -3,6 +3,11 @@ Changelog
 #########
 
 ---
+0.3
+---
+* fixed PyPi packaging
+
+---
 0.2
 ---
 * enable netCDF compression

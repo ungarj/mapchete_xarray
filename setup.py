@@ -26,6 +26,7 @@ setup(
     version=version,
     description='Mapchete xarray output driver',
     long_description=readme,
+    long_description_content_type='text/x-rst',
     author='Joachim Ungar',
     author_email='joachim.ungar@gmail.com',
     url='https://github.com/ungarj/mapchete_xarray',
