@@ -1,3 +1,4 @@
+boto3
 mapchete>=0.28
 netCDF4
 s3fs
