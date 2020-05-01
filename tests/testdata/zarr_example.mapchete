@@ -5,7 +5,7 @@ zoom_levels:
 input:
 output:
     format: xarray
-    path: /some/output/path
+    path: temp
     dtype: uint16
     bands: 3
     storage: zarr
