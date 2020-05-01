@@ -1,3 +1,4 @@
 mapchete>=0.28
 netCDF4
 xarray
+zarr

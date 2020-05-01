@@ -36,6 +36,7 @@ Example ``.mapchete`` file:
         path: /some/output/path
         dtype: uint16
         bands: 3
+        storage: zarr  # or netcdf
     pyramid:
         grid: geodetic
         metatiling: 2

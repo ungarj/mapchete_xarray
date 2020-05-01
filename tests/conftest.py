@@ -55,6 +55,11 @@ def example_config():
 
 
 @pytest.fixture
+def zarr_config():
+    yield from _tempdir_mapchete(os.path.join(TESTDATA_DIR, "zarr_example.mapchete"))
+
+
+@pytest.fixture
 def xarray_tiledir_input_mapchete():
     yield from _tempdir_mapchete(
         os.path.join(TESTDATA_DIR, "xarray_tiledir_input.mapchete")
