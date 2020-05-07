@@ -28,6 +28,9 @@ def test_write_read_output(example_config):
         # check if tile exists
         assert mp.config.output.tiles_exist(data_tile)
 
+        # check if output_tile exists
+        assert mp.config.output.tiles_exist(output_tile=data_tile)
+
         # read again, this time with data
         xarr = mp.config.output.read(data_tile)
         assert isinstance(xarr, xr.DataArray)
@@ -159,8 +162,11 @@ def test_write_read_zarr_output(zarr_config):
         assert isinstance(empty_xarr, xr.DataArray)
         assert mp.config.output.get_path(data_tile).endswith(".zarr")
 
-        # check if tile exists
+        # check if process_tile exists
         assert not mp.config.output.tiles_exist(data_tile)
+
+        # check if output_tile exists
+        assert not mp.config.output.tiles_exist(output_tile=data_tile)
 
         # write
         mp.batch_process(tile=data_tile.id)
@@ -242,3 +248,24 @@ def test_write_read_remote_zarr_output(zarr_config, mp_s3_tmpdir):
         xarr = mp.config.output.read(process_tile)
         assert isinstance(xarr, xr.DataArray)
         assert not xarr.data.any()
+
+
+def test_errors(zarr_config):
+    with mapchete.open(zarr_config.path) as mp:
+        data_tile = next(mp.get_process_tiles(5))
+
+        with pytest.raises(ValueError):
+            mp.config.output.tiles_exist(
+                process_tile=data_tile, output_tile=data_tile
+            )
+
+    with pytest.raises(ValueError):
+        mapchete.open(
+            dict(
+                zarr_config.dict,
+                output=dict(
+                    zarr_config.dict["output"],
+                    storage="invalid"
+                )
+            )
+        )
