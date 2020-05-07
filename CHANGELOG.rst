@@ -3,6 +3,11 @@ Changelog
 #########
 
 ---
+0.4
+---
+* enable writing to zarr (#1)
+
+---
 0.3
 ---
 * fixed PyPi packaging

@@ -89,7 +89,6 @@ Current Limitations
 
 - no reprojection allowed
 - when reading from existing output, process metatiling must be smaller than xarray output metatiling
-- only writing to NetCDF files currently implemented
 
 
 -------
@@ -98,6 +97,6 @@ License
 
 MIT License
 
-Copyright (c) 2019 `EOX IT Services`_
+Copyright (c) 2019-2020 `EOX IT Services`_
 
 .. _`EOX IT Services`: https://eox.at/
