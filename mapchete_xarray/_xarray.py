@@ -299,7 +299,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
         elif self.storage == "zarr":
             return dict(
                 compressor=zarr.Blosc(
-                    compressor=self.output_params.get("compressor", "zstd"),
+                    cname=self.output_params.get("compressor", "zstd"),
                     clevel=self.output_params.get("complevel", 3),
                     shuffle=self.output_params.get("shuffle", 1)
                 )
