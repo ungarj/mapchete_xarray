@@ -2,10 +2,14 @@ import logging
 from mapchete.config import validate_values
 from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
+from mapchete.io import path_exists
 from mapchete.io.raster import create_mosaic, extract_from_array
 from mapchete.tile import BufferedTile
 import numpy as np
+import os
+import s3fs
 import xarray as xr
+import zarr
 
 
 logger = logging.getLogger(__name__)
@@ -16,8 +20,48 @@ METADATA = {
     "mode": "w"
 }
 
+class OutputDataReader(base.TileDirectoryOutputReader):
 
-class OutputDataWriter(base.TileDirectoryOutputWriter):
+    def tiles_exist(self, process_tile=None, output_tile=None):
+        """
+        Check whether output tiles of a tile (either process or output) exists.
+
+        Parameters
+        ----------
+        process_tile : ``BufferedTile``
+            must be member of process ``TilePyramid``
+        output_tile : ``BufferedTile``
+            must be member of output ``TilePyramid``
+
+        Returns
+        -------
+        exists : bool
+        """
+        # We need to use special code for zarr output to check whether tiles
+        # exist on an S3 bucket.
+        if process_tile and output_tile:
+            raise ValueError("just one of 'process_tile' and 'output_tile' allowed")
+        if process_tile:
+            if self.storage == "netcdf":
+                return any(
+                    path_exists(self.get_path(tile))
+                    for tile in self.pyramid.intersecting(process_tile)
+                )
+            else:
+                return any(
+                    path_exists(os.path.join(*[self.get_path(tile), "data", ".zarray"]))
+                    for tile in self.pyramid.intersecting(process_tile)
+                )
+        if output_tile:
+            if self.storage == "netcdf":
+                return path_exists(self.get_path(output_tile))
+            else:
+                return path_exists(
+                    os.path.join(*[self.get_path(output_tile), "data", ".zarray"])
+                )
+
+
+class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
 
     METADATA = METADATA
 
@@ -27,7 +71,10 @@ class OutputDataWriter(base.TileDirectoryOutputWriter):
         self.path = output_params["path"]
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)
-        self.file_extension = ".nc"
+        self.storage = output_params.get("storage", "netcdf")
+        if self.storage not in ["netcdf", "zarr"]:
+            raise ValueError("'storage' must either be 'netcdf' or 'zarr'")
+        self.file_extension = ".nc" if self.storage == "netcdf" else ".zarr"
 
     def is_valid_with_config(self, config):
         """
@@ -105,6 +152,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter):
         for out_tile in self.pyramid.intersecting(process_tile):
             out_tile = BufferedTile(out_tile, self.pixelbuffer)
             out_path = self.get_path(out_tile)
+            logger.debug("write output to %s", out_path)
             self.prepare_path(out_tile)
             out_xarr = _copy_metadata(
                 base_darr=data,
@@ -117,10 +165,21 @@ class OutputDataWriter(base.TileDirectoryOutputWriter):
             if np.where(out_xarr.data == self.nodata, True, False).all():
                 logger.debug("output tile data empty, nothing to write")
             else:
-                logger.debug("write output to %s", out_path)
-                out_xarr.to_dataset(name="data").to_netcdf(
-                    out_path, encoding={"data": self._get_encoding()}
-                )
+                if self.storage == "netcdf":
+                    out_xarr.to_dataset(name="data").to_netcdf(
+                        out_path, encoding={"data": self._get_encoding()}
+                    )
+                elif self.storage == "zarr":
+                    out_path = self.get_path(out_tile)
+                    if out_path.startswith("s3://"):
+                        # Initilize the S3 file system
+                        s3 = s3fs.S3FileSystem()
+                        out_path = s3fs.S3Map(root=out_path, s3=s3, check=False)
+                    logger.debug("write output to %s", out_path)
+                    out_xarr.to_dataset(name="data").to_zarr(
+                        out_path,
+                        encoding={"data": self._get_encoding()}
+                    )
 
     def read(self, output_tile, **kwargs):
         """
@@ -136,8 +195,19 @@ class OutputDataWriter(base.TileDirectoryOutputWriter):
         NumPy array
         """
         try:
-            return xr.open_dataset(self.get_path(output_tile))["data"]
-        except FileNotFoundError:
+            if self.storage == "netcdf":
+                return xr.open_dataset(self.get_path(output_tile))["data"]
+            elif self.storage == "zarr":
+                out_path = self.get_path(output_tile)
+                if out_path.startswith("s3://"):
+                    # Initilize the S3 file system
+                    s3 = s3fs.S3FileSystem()
+                    out_path = s3fs.S3Map(root=out_path, s3=s3, check=False)
+                return xr.open_zarr(
+                    out_path,
+                    chunks=None
+                )["data"]
+        except (FileNotFoundError, ValueError):
             return self.empty(output_tile)
 
     def open(self, tile, process, **kwargs):
@@ -219,12 +289,21 @@ class OutputDataWriter(base.TileDirectoryOutputWriter):
         )
 
     def _get_encoding(self):
-        return dict(
-            zlib=self.output_params.get("zlib", True),
-            complevel=self.output_params.get("complevel", 4),
-            shuffle=self.output_params.get("shuffle", True),
-            fletcher32=self.output_params.get("fletcher32", False),
-        )
+        if self.storage == "netcdf":
+            return dict(
+                zlib=self.output_params.get("zlib", True),
+                complevel=self.output_params.get("complevel", 4),
+                shuffle=self.output_params.get("shuffle", True),
+                fletcher32=self.output_params.get("fletcher32", False),
+            )
+        elif self.storage == "zarr":
+            return dict(
+                compressor=zarr.Blosc(
+                    cname=self.output_params.get("compressor", "zstd"),
+                    clevel=self.output_params.get("complevel", 3),
+                    shuffle=self.output_params.get("shuffle", 1)
+                )
+            )
 
 
 class InputTile(base.InputTile):

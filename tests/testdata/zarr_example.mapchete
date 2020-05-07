@@ -1,0 +1,14 @@
+process: process.py
+zoom_levels:
+    min: 0
+    max: 12
+input:
+output:
+    format: xarray
+    path: temp
+    dtype: uint16
+    bands: 3
+    storage: zarr
+pyramid:
+    grid: geodetic
+    metatiling: 2

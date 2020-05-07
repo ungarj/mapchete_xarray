@@ -1,13 +1,16 @@
+import boto3
 from collections import namedtuple
 import mapchete
 import os
 import pytest
 from tempfile import TemporaryDirectory
+import uuid
 import yaml
 
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(SCRIPT_DIR, "testdata")
+S3_TEMP_DIR = "s3://mapchete-test/tmp/" + uuid.uuid4().hex
 
 ExampleConfig = namedtuple("ExampleConfig", ("path", "dict"))
 
@@ -37,6 +40,22 @@ def _tempdir_mapchete(path, update={}):
         yield ExampleConfig(path=temp_mapchete_file, dict=config)
 
 
+# temporary directory for I/O tests
+@pytest.fixture
+def mp_s3_tmpdir():
+    """Setup and teardown temporary directory."""
+
+    def _cleanup():
+        for obj in boto3.resource('s3').Bucket(S3_TEMP_DIR.split("/")[2]).objects.filter(
+            Prefix="/".join(S3_TEMP_DIR.split("/")[-2:])
+        ):
+            obj.delete()
+
+    _cleanup()
+    yield S3_TEMP_DIR
+    _cleanup()
+
+
 @pytest.fixture(scope="session")
 def written_output():
     temp_fixture = _tempdir_mapchete(os.path.join(TESTDATA_DIR, "example.mapchete"))
@@ -52,6 +71,11 @@ def written_output():
 @pytest.fixture
 def example_config():
     yield from _tempdir_mapchete(os.path.join(TESTDATA_DIR, "example.mapchete"))
+
+
+@pytest.fixture
+def zarr_config():
+    yield from _tempdir_mapchete(os.path.join(TESTDATA_DIR, "zarr_example.mapchete"))
 
 
 @pytest.fixture
