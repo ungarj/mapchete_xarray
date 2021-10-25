@@ -2,6 +2,21 @@
 Changelog
 #########
 
+
+----------------------
+2021.10.1 - 2021.10.25
+----------------------
+
+* packaging
+
+    * change version numbering scheme to ``YYYY.MM.x``
+    * use GitHub actions instead of travis
+
+* tests
+
+    * fix fixtures
+
+
 ---
 0.4
 ---
