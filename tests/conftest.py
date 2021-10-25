@@ -1,5 +1,6 @@
 import boto3
 from collections import namedtuple
+from contextlib import contextmanager
 import mapchete
 import os
 import pytest
@@ -16,6 +17,7 @@ ExampleConfig = namedtuple("ExampleConfig", ("path", "dict"))
 
 
 # helper functions
+@contextmanager
 def _tempdir_mapchete(path, update={}):
     with TemporaryDirectory() as temp_dir:
         abs_dir, filename = os.path.split(path)
@@ -58,35 +60,36 @@ def mp_s3_tmpdir():
 
 @pytest.fixture(scope="session")
 def written_output():
-    temp_fixture = _tempdir_mapchete(os.path.join(TESTDATA_DIR, "example.mapchete"))
-    temp_process = next(temp_fixture)
-    with mapchete.open(temp_process.path) as mp:
-        data_tile = next(mp.get_process_tiles(5))
-        mp.batch_process(tile=data_tile.id)
-        yield temp_process
-    # triggers deletion of temporary directory
-    next(temp_fixture)
+    with _tempdir_mapchete(os.path.join(TESTDATA_DIR, "example.mapchete")) as config:
+        with mapchete.open(config.path) as mp:
+            data_tile = next(mp.get_process_tiles(5))
+            mp.batch_process(tile=data_tile.id)
+            yield config
 
 
 @pytest.fixture
 def example_config():
-    yield from _tempdir_mapchete(os.path.join(TESTDATA_DIR, "example.mapchete"))
+    with _tempdir_mapchete(os.path.join(TESTDATA_DIR, "example.mapchete")) as config:
+        yield config
 
 
 @pytest.fixture
 def zarr_config():
-    yield from _tempdir_mapchete(os.path.join(TESTDATA_DIR, "zarr_example.mapchete"))
+    with _tempdir_mapchete(os.path.join(TESTDATA_DIR, "zarr_example.mapchete")) as config:
+        yield config
 
 
 @pytest.fixture
 def xarray_tiledir_input_mapchete():
-    yield from _tempdir_mapchete(
+    with _tempdir_mapchete(
         os.path.join(TESTDATA_DIR, "xarray_tiledir_input.mapchete")
-    )
+    ) as config:
+        yield config
 
 
 @pytest.fixture
 def xarray_mapchete_input_mapchete():
-    yield from _tempdir_mapchete(
+    with _tempdir_mapchete(
         os.path.join(TESTDATA_DIR, "xarray_mapchete_input.mapchete")
-    )
+    ) as config:
+        yield config
