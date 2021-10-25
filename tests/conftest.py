@@ -23,7 +23,7 @@ def _tempdir_mapchete(path, update={}):
         abs_dir, filename = os.path.split(path)
 
         # load config to dictionary
-        config = yaml.load(open(path).read())
+        config = yaml.safe_load(open(path).read())
 
         # add config directory, point output to temp_dir and make path to process
         # file absolute
