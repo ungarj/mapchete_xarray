@@ -37,6 +37,9 @@ setup(
         'mapchete.formats.drivers': [
             'xarray=mapchete_xarray',
         ],
+        "mapchete.processes": [
+            "convert_to_xarray=mapchete_xarray.processes.convert_to_xarray",
+        ],
     },
     classifiers=[
         'Development Status :: 3 - Alpha',

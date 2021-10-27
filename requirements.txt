@@ -1,6 +1,4 @@
-boto3
-mapchete>=0.28
+mapchete>=2021.10.3
 netCDF4
-s3fs
 xarray
 zarr

@@ -2,12 +2,12 @@ import logging
 from mapchete.config import validate_values
 from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
-from mapchete.io import path_exists
+from mapchete.io import path_exists, fs_from_path
 from mapchete.io.raster import create_mosaic, extract_from_array
 from mapchete.tile import BufferedTile
 import numpy as np
 import os
-import s3fs
+import tempfile
 import xarray as xr
 import zarr
 
@@ -21,6 +21,20 @@ METADATA = {
 }
 
 class OutputDataReader(base.TileDirectoryOutputReader):
+
+
+    def __init__(self, output_params, **kwargs):
+        """Initialize."""
+        super(OutputDataReader, self).__init__(output_params)
+        self.path = output_params["path"]
+        self.output_params = output_params
+        self.nodata = output_params.get("nodata", 0)
+        self.storage = output_params.get("storage", "netcdf")
+        if self.storage not in ["netcdf", "zarr"]:
+            raise ValueError("'storage' must either be 'netcdf' or 'zarr'")
+        self.file_extension = ".nc" if self.storage == "netcdf" else ".zarr"
+        self.fs = fs_from_path(self.path)
+
 
     def tiles_exist(self, process_tile=None, output_tile=None):
         """
@@ -68,13 +82,6 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
     def __init__(self, output_params, **kwargs):
         """Initialize."""
         super(OutputDataWriter, self).__init__(output_params)
-        self.path = output_params["path"]
-        self.output_params = output_params
-        self.nodata = output_params.get("nodata", 0)
-        self.storage = output_params.get("storage", "netcdf")
-        if self.storage not in ["netcdf", "zarr"]:
-            raise ValueError("'storage' must either be 'netcdf' or 'zarr'")
-        self.file_extension = ".nc" if self.storage == "netcdf" else ".zarr"
 
     def is_valid_with_config(self, config):
         """
@@ -166,18 +173,35 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
                 logger.debug("output tile data empty, nothing to write")
             else:
                 if self.storage == "netcdf":
-                    out_xarr.to_dataset(name="data").to_netcdf(
-                        out_path, encoding={"data": self._get_encoding()}
-                    )
-                elif self.storage == "zarr":
-                    out_path = self.get_path(out_tile)
                     if out_path.startswith("s3://"):
-                        # Initilize the S3 file system
-                        s3 = s3fs.S3FileSystem()
-                        out_path = s3fs.S3Map(root=out_path, s3=s3, check=False)
+                        # this below does not work as writing to a file object is only
+                        # supported by the "scipy" engine which does not accept our
+                        # encoding dict
+                        # with self.fs.open(out_path, "wb") as dst:
+                        #     dst.write(
+                        #         out_xarr.to_dataset(name="data").to_netcdf(
+                        #             self.fs.get_mapper(out_path),
+                        #             encoding={"data": self._get_encoding()},
+                        #         )
+                        #     )
+                        with tempfile.TemporaryDirectory() as tmpdir:
+                            tmp_path = os.path.join(tmpdir, "temp.nc")
+                            logger.debug("write to temporary file %s", tmp_path)
+                            out_xarr.to_dataset(name="data").to_netcdf(
+                                tmp_path, encoding={"data": self._get_encoding()}
+                            )
+                            logger.debug("upload %s to %s", tmp_path, out_path)
+                            self.fs.upload(tmp_path, out_path)
+                    else:
+                        out_xarr.to_dataset(name="data").to_netcdf(
+                            out_path, encoding={"data": self._get_encoding()}
+                        )
+                elif self.storage == "zarr":
+                    out_path = self.fs.get_mapper(out_path)
                     logger.debug("write output to %s", out_path)
                     out_xarr.to_dataset(name="data").to_zarr(
                         out_path,
+                        mode="w",
                         encoding={"data": self._get_encoding()}
                     )
 
@@ -195,14 +219,18 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
         NumPy array
         """
         try:
+            out_path = self.get_path(output_tile)
             if self.storage == "netcdf":
+                if out_path.startswith("s3://"):
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        tmp_path = os.path.join(tmpdir, "temp.nc")
+                        logger.debug("download to temporary file %s", tmp_path)
+                        self.fs.download(out_path, tmp_path)
+                        with self.fs.open(out_path, "rb") as src:
+                            return xr.open_dataset(tmp_path)["data"]
                 return xr.open_dataset(self.get_path(output_tile))["data"]
             elif self.storage == "zarr":
-                out_path = self.get_path(output_tile)
-                if out_path.startswith("s3://"):
-                    # Initilize the S3 file system
-                    s3 = s3fs.S3FileSystem()
-                    out_path = s3fs.S3Map(root=out_path, s3=s3, check=False)
+                out_path = self.fs.get_mapper(out_path)
                 return xr.open_zarr(
                     out_path,
                     chunks=None
