@@ -35,7 +35,6 @@ def execute(
         if len(band_names) != data.shape[0]:
             raise ValueError("band_names has to be the same length than input array")
         coords.update(bands=band_names)
-    print(coords)
 
     return xr.DataArray(
         # nd array
