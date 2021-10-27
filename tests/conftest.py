@@ -1,4 +1,3 @@
-import boto3
 from collections import namedtuple
 from contextlib import contextmanager
 import mapchete
@@ -49,11 +48,10 @@ def mp_s3_tmpdir():
     """Setup and teardown temporary directory."""
     fs = fs_from_path(S3_TEMP_DIR)
     def _cleanup():
-        for obj in boto3.resource('s3').Bucket(S3_TEMP_DIR.split("/")[2]).objects.filter(
-            Prefix="/".join(S3_TEMP_DIR.split("/")[-2:])
-        ):
-            obj.delete()
-        # fs.rm(S3_TEMP_DIR, recursive=True)
+        try:
+            fs.rm(S3_TEMP_DIR, recursive=True)
+        except FileNotFoundError:
+            pass
 
     _cleanup()
     yield S3_TEMP_DIR
