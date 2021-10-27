@@ -18,7 +18,7 @@ def execute(
     coords = {}
     attrs = {}
     with mp.open("raster") as raster:
-        if raster.is_empty:
+        if raster.is_empty():
             return "empty"
         data = raster.read()
 
