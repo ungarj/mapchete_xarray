@@ -17,7 +17,10 @@ def execute(
     """
     coords = {}
     attrs = {}
-    data = mp.open("raster").read()
+    with mp.open("raster") as raster:
+        if raster.is_empty:
+            return "empty"
+        data = raster.read()
 
     if "indexes" in mp.input:
         if index_band is None:
