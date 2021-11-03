@@ -1,0 +1,14 @@
+process: mapchete_xarray.processes.convert_to_xarray
+input:
+  raster: https://ungarj.github.io/mapchete_testdata/tiled_data/raster/cleantopo/
+output:
+    format: xarray
+    path: /some/output/path
+    dtype: uint16
+    bands: 1
+pyramid:
+    grid: geodetic
+    metatiling: 2
+zoom_levels:
+  min: 0
+  max: 5

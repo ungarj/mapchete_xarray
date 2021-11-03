@@ -238,7 +238,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
         except (FileNotFoundError, ValueError):
             return self.empty(output_tile)
 
-    def open(self, tile, process, **kwargs):
+    def open(self, tile, process, **kwargs):  # pragma: no cover
         """
         Open process output as input for other process.
 
@@ -306,6 +306,8 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
         -------
         data : list for vector files or numpy array for raster files
         """
+        if not tiles_paths:
+            return self.empty(out_tile)
         source_tile = tiles_paths[0][0]
         if source_tile.tp.grid != out_tile.tp.grid:
             raise MapcheteConfigError(
@@ -334,7 +336,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
             )
 
 
-class InputTile(base.InputTile):
+class InputTile(base.InputTile):  # pragma: no cover
     """
     Target Tile representation of input data.
 

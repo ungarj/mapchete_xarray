@@ -5,13 +5,15 @@ import numpy as np
 import pytest
 import xarray as xr
 
+from mapchete.testing import get_process_mp
+
 
 def test_format_available():
     assert "xarray" in available_output_formats()
 
 
 def test_write_read_output(example_config):
-    with mapchete.open(example_config.path) as mp:
+    with mapchete.open(example_config.dict) as mp:
         data_tile = next(mp.get_process_tiles(5))
 
         # basic functions
@@ -119,7 +121,7 @@ def test_read_from_mapchete_output(xarray_mapchete_input_mapchete, written_outpu
     with mapchete.open(
         dict(
             xarray_mapchete_input_mapchete.dict,
-            input=dict(xarray_output=written_output.path)
+            input=dict(xarray_output=written_output.dict["output"]["path"])
         )
     ) as mp:
         tile = mp.config.process_pyramid.tile(5, 0, 0)
@@ -205,7 +207,7 @@ def test_write_read_remote_netcdf_output(example_config, mp_s3_tmpdir):
 
 
 def test_write_read_zarr_output(zarr_config):
-    with mapchete.open(zarr_config.path) as mp:
+    with mapchete.open(zarr_config.dict) as mp:
         data_tile = next(mp.get_process_tiles(5))
 
         # basic functions
@@ -302,7 +304,7 @@ def test_write_read_remote_zarr_output(zarr_config, mp_s3_tmpdir):
 
 
 def test_errors(zarr_config):
-    with mapchete.open(zarr_config.path) as mp:
+    with mapchete.open(zarr_config.dict) as mp:
         data_tile = next(mp.get_process_tiles(5))
 
         with pytest.raises(ValueError):
@@ -320,3 +322,14 @@ def test_errors(zarr_config):
                 )
             )
         )
+
+
+def test_input_data(written_output):
+    mp = get_process_mp(
+        input=dict(xarray=written_output.dict["output"]["path"]),
+        tile=written_output.first_process_tile(),
+        metatiling=2
+    )
+    xarr = mp.open("xarray")
+    assert xarr.is_empty()
+    assert isinstance(xarr.read(), xr.DataArray)

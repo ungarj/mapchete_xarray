@@ -1,5 +1,4 @@
 import json
-import numpy as np
 import xarray as xr
 
 
@@ -12,7 +11,6 @@ def execute(
 ):
     """
     Convert raster input array to xarray with optionally named axes.
-
     
     """
     coords = {}
@@ -22,7 +20,7 @@ def execute(
             return "empty"
         data = raster.read()
 
-    if "indexes" in mp.input:
+    if "indexes" in mp.input:  # pragma: no cover
         if index_band is None:
             raise ValueError("index_band has to be specified if indexes are provided")
         s2_indexes = {
@@ -32,7 +30,7 @@ def execute(
         attrs.update(slice_ids=s2_indexes)
 
     if band_names:
-        if len(band_names) != data.shape[0]:
+        if len(band_names) != data.shape[0]:  # pragma: no cover
             raise ValueError("band_names has to be the same length than input array")
         coords.update(bands=band_names)
 
