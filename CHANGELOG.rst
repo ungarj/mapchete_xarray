@@ -2,6 +2,18 @@
 Changelog
 #########
 
+----------------------
+2021.11.0 - 2021.11.03
+----------------------
+
+* core
+
+    * add S3 read/write support for NetCDF
+    * add ``mapchete_xarray.processes.convert_to_xarray`` process
+
+* tests
+
+    * use ``mapchete.testing``
 
 ----------------------
 2021.10.0 - 2021.10.25
