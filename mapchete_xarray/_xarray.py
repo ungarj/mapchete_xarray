@@ -14,15 +14,10 @@ import zarr
 
 logger = logging.getLogger(__name__)
 
-METADATA = {
-    "driver_name": "xarray",
-    "data_type": "raster",
-    "mode": "w"
-}
+METADATA = {"driver_name": "xarray", "data_type": "raster", "mode": "w"}
+
 
 class OutputDataReader(base.TileDirectoryOutputReader):
-
-
     def __init__(self, output_params, **kwargs):
         """Initialize."""
         super(OutputDataReader, self).__init__(output_params)
@@ -34,7 +29,6 @@ class OutputDataReader(base.TileDirectoryOutputReader):
             raise ValueError("'storage' must either be 'netcdf' or 'zarr'")
         self.file_extension = ".nc" if self.storage == "netcdf" else ".zarr"
         self.fs = fs_from_path(self.path)
-
 
     def tiles_exist(self, process_tile=None, output_tile=None):
         """
@@ -166,8 +160,8 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
                 new_data=extract_from_array(
                     in_raster=data.data,
                     in_affine=process_tile.affine,
-                    out_tile=out_tile
-                )
+                    out_tile=out_tile,
+                ),
             )
             if np.where(out_xarr.data == self.nodata, True, False).all():
                 logger.debug("output tile data empty, nothing to write")
@@ -200,9 +194,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
                     out_path = self.fs.get_mapper(out_path)
                     logger.debug("write output to %s", out_path)
                     out_xarr.to_dataset(name="data").to_zarr(
-                        out_path,
-                        mode="w",
-                        encoding={"data": self._get_encoding()}
+                        out_path, mode="w", encoding={"data": self._get_encoding()}
                     )
 
     def read(self, output_tile, **kwargs):
@@ -226,15 +218,11 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
                         tmp_path = os.path.join(tmpdir, "temp.nc")
                         logger.debug("download to temporary file %s", tmp_path)
                         self.fs.download(out_path, tmp_path)
-                        with self.fs.open(out_path, "rb") as src:
-                            return xr.open_dataset(tmp_path)["data"]
+                        return xr.open_dataset(tmp_path)["data"]
                 return xr.open_dataset(self.get_path(output_tile))["data"]
             elif self.storage == "zarr":
                 out_path = self.fs.get_mapper(out_path)
-                return xr.open_zarr(
-                    out_path,
-                    chunks=None
-                )["data"]
+                return xr.open_zarr(out_path, chunks=None)["data"]
         except (FileNotFoundError, ValueError):
             return self.empty(output_tile)
 
@@ -269,8 +257,8 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
             base_darr=input_data_tiles[0][1],
             new_data=extract_from_array(
                 in_raster=create_mosaic([(i[0], i[1].data) for i in input_data_tiles]),
-                out_tile=out_tile
-            )
+                out_tile=out_tile,
+            ),
         )
 
     def _read_as_tiledir(
@@ -315,7 +303,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
             )
         return self.extract_subset(
             input_data_tiles=[(tile, self.read(tile)) for tile, _ in tiles_paths],
-            out_tile=out_tile
+            out_tile=out_tile,
         )
 
     def _get_encoding(self):
@@ -331,7 +319,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
                 compressor=zarr.Blosc(
                     cname=self.output_params.get("compressor", "zstd"),
                     clevel=self.output_params.get("complevel", 3),
-                    shuffle=self.output_params.get("shuffle", 1)
+                    shuffle=self.output_params.get("shuffle", 1),
                 )
             )
 
@@ -380,5 +368,5 @@ def _copy_metadata(base_darr=None, new_data=None):
         coords=base_darr.coords,
         dims=base_darr.dims,
         name=base_darr.name,
-        attrs=base_darr.attrs
+        attrs=base_darr.attrs,
     )

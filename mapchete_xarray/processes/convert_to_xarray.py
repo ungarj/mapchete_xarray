@@ -11,7 +11,7 @@ def execute(
 ):
     """
     Convert raster input array to xarray with optionally named axes.
-    
+
     """
     coords = {}
     attrs = {}
@@ -42,5 +42,5 @@ def execute(
         # named dimensions
         dims=("bands", "x", "y"),
         # additional attributes
-        attrs=dict(json=json.dumps(attrs))
+        attrs=dict(json=json.dumps(attrs)),
     )
