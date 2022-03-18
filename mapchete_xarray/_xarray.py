@@ -1,14 +1,16 @@
 import logging
-from mapchete.config import validate_values
+from mapchete.config import validate_values, snap_bounds
 from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
 from mapchete.io import path_exists, fs_from_path
 from mapchete.io.raster import create_mosaic, extract_from_array, bounds_to_ranges
 from mapchete.tile import BufferedTile
+import math
 import numpy as np
 import os
 from rasterio.transform import from_origin
 import tempfile
+from tilematrix import Bounds
 import xarray as xr
 import zarr
 
@@ -76,13 +78,47 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
     METADATA = METADATA
 
     def __init__(self, output_params, *args, **kwargs):
-        super(XarrayTileDirectoryOutputDataReader, self).__init__(output_params)
-        self.path = output_params["path"]
+        super().__init__(output_params)
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)
         self.storage = "zarr"
         self.file_extension = ".zarr"
+        self.path = output_params["path"]
         self.fs = fs_from_path(self.path)
+        self.output_params = output_params
+        self.zoom = output_params["delimiters"]["zoom"][0]
+        self.fill_value = output_params.get("fill_value", 0)
+        self.count = output_params.get("bands", 1)
+        self.dtype = output_params.get("dtype", "uint8")
+        self.x_axis_name = output_params.get("x_axis_name", "X")
+        self.y_axis_name = output_params.get("y_axis_name", "Y")
+        self.area_or_point = output_params.get("area_or_point", "Area")
+        self.bounds = snap_bounds(
+            bounds=output_params["delimiters"]["process_bounds"],
+            pyramid=self.pyramid,
+            zoom=self.zoom,
+        )
+        self.affine = from_origin(
+            self.bounds.left,
+            self.bounds.top,
+            self.pyramid.pixel_x_size(self.zoom),
+            self.pyramid.pixel_y_size(self.zoom),
+        )
+        self.shape = (
+            math.ceil(
+                (self.bounds.top - self.bounds.bottom)
+                / self.pyramid.pixel_x_size(self.zoom)
+            ),
+            math.ceil(
+                (self.bounds.right - self.bounds.left)
+                / self.pyramid.pixel_x_size(self.zoom)
+            ),
+        )
+        try:
+            zarr.consolidate_metadata(self.path)
+            self.ds = xr.open_dataset(self.path, mask_and_scale=False, cache=False)
+        except Exception:
+            self.ds = None
 
     def read(self, output_tile):
         """
@@ -97,8 +133,7 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         -------
         process output : array or list
         """
-
-        raise NotImplementedError()
+        return list(self._read(bounds=output_tile.bounds))
 
     def empty(self, process_tile):
         """
@@ -115,43 +150,37 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
             empty array with correct data type for raster data or empty list
             for vector data
         """
-        raise NotImplementedError()
+        return [xr.DataArray([]) for _ in range(self.count)]
+
+    def _bounds_to_ranges(self, bounds):
+        return bounds_to_ranges(
+            out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
+        )
+
+    def _read(self, bounds):
+        # if self.ds is None:
+        with xr.open_dataset(self.path, mask_and_scale=False) as ds:
+            # TODO: find method to check whether tile output was already written
+            minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(bounds)
+            for data_var, data in ds.data_vars.items():
+                arr = data[minrow:maxrow, mincol:maxcol]
+                yield arr
 
 
-class XarrayZarrOutputDataWriter(base.SingleFileOutputWriter):
+class XarrayZarrOutputDataWriter(
+    base.SingleFileOutputWriter, XarrayZarrOutputDataReader
+):
 
     METADATA = METADATA
 
     def __init__(self, output_params, *args, **kwargs):
-        super(XarrayZarrOutputDataWriter, self).__init__(output_params)
-        self.file_extension = ".zarr"
-        self.output_params = output_params
-        zoom = output_params["delimiters"]["zoom"][0]
-        self.path = output_params["path"]
-        self.fill_value = output_params.get("fill_value", None)
-        self.count = output_params.get("bands", 1)
-        self.dtype = output_params.get("dtype", "uint8")
-        self.x_axis_name = output_params.get("x_axis_name", "X")
-        self.y_axis_name = output_params.get("y_axis_name", "Y")
-        self.area_or_point = output_params.get("area_or_point", "Area")
-        self.bounds = output_params["delimiters"]["process_bounds"]
-        self.affine = from_origin(
-            self.bounds.left,
-            self.bounds.top,
-            self.pyramid.pixel_x_size(zoom),
-            self.pyramid.pixel_y_size(zoom),
-        )
-        self.shape = (
-            self.pyramid.matrix_height(zoom) * self.pyramid.tile_height(zoom),
-            self.pyramid.matrix_width(zoom) * self.pyramid.tile_width(zoom),
-        )
+        super().__init__(output_params)
+
+    def prepare(self, process_area=None, **kwargs):
         # check if archive exists
-        try:
-            self.fs.ls(self.path)
-            raise NotImplementedError
-        except FileNotFoundError:
+        if self.ds is None:
             # if not, create an empty one
-            initialize_zarr(
+            self.ds = initialize_zarr(
                 path=self.path,
                 bounds=self.bounds,
                 shape=self.shape,
@@ -181,9 +210,11 @@ class XarrayZarrOutputDataWriter(base.SingleFileOutputWriter):
         -------
         exists : bool
         """
-        # TODO: find method to check whether tile output was already written
+        bounds = process_tile.bounds if process_tile else output_tile.bounds
+        for var in self._read(bounds=bounds):
+            if not np.all(var == self.nodata):
+                return True
         return False
-        raise NotImplementedError()
 
     def is_valid_with_config(self, config):
         """
@@ -211,32 +242,23 @@ class XarrayZarrOutputDataWriter(base.SingleFileOutputWriter):
         process_tile : ``BufferedTile``
             must be member of process ``TilePyramid``
         """
-        ds = xr.Dataset(
-            # coords={
-            #     self.x_axis_name: ([self.x_axis_name], coord_x),
-            #     self.y_axis_name: ([self.y_axis_name], coord_y),
-            # },
+        minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(process_tile.bounds)
+        print(data)
+        with xr.Dataset(
             data_vars={
                 f"Band{i}": ([self.y_axis_name, self.x_axis_name], array)
-                for i, array in zip(range(1, self.count + 1), data)
+                for i, array in zip(range(1, self.count + 1), data.values)
             }
-        )
-        minrow, maxrow, mincol, maxcol = bounds_to_ranges(
-            out_bounds=process_tile.bounds, in_affine=self.affine, in_shape=self.shape
-        )
-        ds.to_zarr(
-            self.path,
-            compute=False,
-            safe_chunks=True,
-            region={
-                self.x_axis_name: slice(mincol, maxcol),
-                self.y_axis_name: slice(minrow, maxrow),
-            },
-        )
-
-        # dataset.to_zarr(region...)
-        # use "region" kwarg to determine where in the zarr archive to write the data to
-        raise NotImplementedError
+        ) as ds:
+            ds.to_zarr(
+                self.path,
+                compute=True,
+                safe_chunks=True,
+                region={
+                    self.x_axis_name: slice(mincol, maxcol),
+                    self.y_axis_name: slice(minrow, maxrow),
+                },
+            )
 
     def output_is_valid(self, process_data):
         """
@@ -250,7 +272,7 @@ class XarrayZarrOutputDataWriter(base.SingleFileOutputWriter):
         -------
         True or False
         """
-        return isinstance(process_data, xr.DataArray)
+        return isinstance(process_data, (xr.DataArray, np.ndarray))
 
     def output_cleaned(self, process_data):
         """
@@ -264,11 +286,14 @@ class XarrayZarrOutputDataWriter(base.SingleFileOutputWriter):
         -------
         xarray
         """
-        return process_data
+        if isinstance(process_data, xr.DataArray):
+            return process_data
+        return xr.DataArray(process_data)
 
     def close(self, exc_type=None, exc_value=None, exc_traceback=None):
         """Gets called if process is closed."""
-        pass
+        logger.debug("close %s", self.ds)
+        self.ds.close()
 
 
 class XarrayTileDirectoryOutputDataReader(base.TileDirectoryOutputReader):
@@ -277,7 +302,7 @@ class XarrayTileDirectoryOutputDataReader(base.TileDirectoryOutputReader):
 
     def __init__(self, output_params, **kwargs):
         """Initialize."""
-        super(XarrayTileDirectoryOutputDataReader, self).__init__(output_params)
+        super().__init__(output_params)
         self.path = output_params["path"]
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)
@@ -334,7 +359,7 @@ class XarrayTileDirectoryOutputDataWriter(
 
     def __init__(self, output_params, **kwargs):
         """Initialize."""
-        super(XarrayTileDirectoryOutputDataWriter, self).__init__(output_params)
+        super().__init__(output_params)
 
     def is_valid_with_config(self, config):
         """

@@ -1,4 +1,4 @@
-process: process.py
+process: single_zarr_process.py
 zoom_levels: 5
 input:
 output:
@@ -9,4 +9,4 @@ output:
     storage: zarr
 pyramid:
     grid: geodetic
-    metatiling: 2
+    metatiling: 1

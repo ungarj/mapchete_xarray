@@ -29,7 +29,9 @@ def initialize_zarr(
 
     coord_x = [bounds.left + pixel_x_size / 2 + i * pixel_x_size for i in range(width)]
     coord_y = [bounds.top + pixel_y_size / 2 + i * pixel_y_size for i in range(height)]
-    array = ~da.zeros(shape=shape, chunks=(chunksize, chunksize), dtype=dtype)
+    array = da.full(
+        shape=shape, fill_value=fill_value, chunks=(chunksize, chunksize), dtype=dtype
+    )
     ds = xr.Dataset(
         coords={
             x_axis_name: ([x_axis_name], coord_x),
@@ -62,3 +64,5 @@ def initialize_zarr(
         metadata["_CRS"] = {"wkt": crs.wkt}
         with fs.open(attrs_path, mode="w") as dst:
             dst.write(json.dumps(metadata))
+
+    return ds
