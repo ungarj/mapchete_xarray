@@ -13,6 +13,7 @@ def initialize_zarr(
     bounds=None,
     shape=None,
     crs=None,
+    time=None,
     fill_value=None,
     chunksize=256,
     count=None,
@@ -22,6 +23,8 @@ def initialize_zarr(
     area_or_point="Area",
 ):
     fs = fs_from_path(path)
+    # if time is not None:
+
     height, width = shape
     bounds = Bounds(*bounds)
     pixel_x_size = (bounds.right - bounds.left) / width

@@ -116,6 +116,9 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
                 / self.pyramid.pixel_x_size(self.zoom)
             ),
         )
+        self.time = output_params.get("time", {})
+        self.start_time = self.time.get("start")
+        self.end_time = self.time.get("end")
         try:
             zarr.consolidate_metadata(self.path)
             self.ds = xr.open_zarr(self.path, mask_and_scale=False, cache=False)
@@ -158,6 +161,19 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         return bounds_to_ranges(
             out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
         )
+
+    def _time_to_ranges(self, timestamps):
+        # get start and end time from timestamps
+        # start = min(timestamps)
+        # end = max(timestamps)
+        # get array index form start and end time
+        # for i, t in enumerate(timerange(self.start_time, self.end_time, self.time_steps)):
+        #     if t == start:
+        #         start_idx = i
+        #     if t == end:
+        #         end_idx = i
+        # return (start_idx, end_idx)
+        raise NotImplementedError()
 
     def _read(self, bounds):
         # if self.ds is None:
@@ -253,9 +269,21 @@ class XarrayZarrOutputDataWriter(
             self.y_axis_name: np.arange(process_tile.height),
             self.x_axis_name: np.arange(process_tile.width),
         }
+        region = {
+            self.x_axis_name: slice(mincol, maxcol),
+            self.y_axis_name: slice(minrow, maxrow),
+        }
+        axis_names = [self.y_axis_name, self.x_axis_name]
+
+        if self.time:
+            coords["time"] = data.time.values
+            start_time, end_time = self._time_to_ranges(data.time.values)
+            region["time"] = slice(start_time, end_time)
+            axis_names = ["time"] + axis_names
+
         with xr.Dataset(
             data_vars={
-                f"Band{i}": ([self.y_axis_name, self.x_axis_name], band.values)
+                f"Band{i}": (axis_names, band.values)
                 for i, band in zip(range(1, self.count + 1), data)
             },
             coords=coords,
@@ -264,10 +292,7 @@ class XarrayZarrOutputDataWriter(
                 FSStore(self.path),
                 compute=True,
                 safe_chunks=True,
-                region={
-                    self.x_axis_name: slice(mincol, maxcol),
-                    self.y_axis_name: slice(minrow, maxrow),
-                },
+                region=region,
             )
 
     def output_is_valid(self, process_data):

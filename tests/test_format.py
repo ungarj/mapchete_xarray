@@ -430,3 +430,54 @@ def test_single_zarr_empty_s3(zarr_single_s3_mapchete):
     for xarr in mp.config.output.read(process_tile):
         assert isinstance(xarr, xr.DataArray)
         assert not xarr.data.any()
+
+
+def test_single_zarr_time(zarr_single_mapchete_time):
+    mp = zarr_single_mapchete_time.mp()
+    data_tile = zarr_single_mapchete_time.first_process_tile()
+
+    # basic functions
+    for empty_xarr in mp.config.output.empty(data_tile):
+        assert isinstance(empty_xarr, xr.DataArray)
+    assert mp.config.output.get_path(data_tile)
+
+    # check if tile exists
+    assert not mp.config.output.tiles_exist(data_tile)
+
+    # write
+    mp.batch_process(tile=data_tile.id)
+
+    # check if tile exists
+    assert mp.config.output.tiles_exist(data_tile)
+
+    # check if output_tile exists
+    assert mp.config.output.tiles_exist(output_tile=data_tile)
+
+    # read again, this time with data
+    for xarr in mp.config.output.read(data_tile):
+        assert isinstance(xarr, xr.DataArray)
+        assert xarr.data.all()
+        assert not set(("time", "X", "Y")).difference(set(xarr.dims))
+
+
+def test_single_zarr_time_empty(zarr_single_time_mapchete):
+    mp = zarr_single_time_mapchete.mp()
+    # handle empty data
+    process_tile = zarr_single_time_mapchete.first_process_tile()
+    mp.config.output.write(process_tile, mp.config.output.empty(process_tile))
+    # check if tile exists
+    assert not mp.config.output.tiles_exist(process_tile)
+    for xarr in mp.config.output.read(process_tile):
+        assert isinstance(xarr, xr.DataArray)
+        assert not xarr.data.any()
+
+    # write empty DataArray
+    # NOTE: this probably will fail because DataArray has no time coords
+    mp.config.output.write(
+        process_tile, xr.DataArray(np.zeros((3, *process_tile.shape)))
+    )
+    # check if tile exists
+    assert not mp.config.output.tiles_exist(process_tile)
+    for xarr in mp.config.output.read(process_tile):
+        assert isinstance(xarr, xr.DataArray)
+        assert not xarr.data.any()

@@ -77,6 +77,14 @@ def zarr_single_s3_mapchete():
 
 
 @pytest.fixture
+def zarr_single_time_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "zarr_single_time.mapchete"),
+    ) as example:
+        yield example
+
+
+@pytest.fixture
 def xarray_tiledir_input_mapchete():
     with TemporaryDirectory() as tempdir:
         with ProcessFixture(
