@@ -5,7 +5,7 @@ import numpy as np
 import os
 from tilematrix._funcs import Bounds
 import xarray as xr
-import zarr
+from zarr.storage import FSStore
 
 
 def initialize_zarr(
@@ -50,7 +50,7 @@ def initialize_zarr(
     for data_var in ds.data_vars:
         ds[data_var].attrs = attrs
     ds.to_zarr(
-        path,
+        FSStore(path),
         compute=False,
         encoding={var: {"_FillValue": fill_value} for var in ds.data_vars},
         safe_chunks=True,

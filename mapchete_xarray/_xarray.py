@@ -13,6 +13,8 @@ import tempfile
 from tilematrix import Bounds
 import xarray as xr
 import zarr
+from zarr.storage import FSStore
+
 
 from mapchete_xarray._zarr import initialize_zarr
 
@@ -259,7 +261,7 @@ class XarrayZarrOutputDataWriter(
             coords=coords,
         ) as ds:
             ds.to_zarr(
-                self.path,
+                FSStore(self.path),
                 compute=True,
                 safe_chunks=True,
                 region={
