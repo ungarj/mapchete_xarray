@@ -432,9 +432,9 @@ def test_single_zarr_empty_s3(zarr_single_s3_mapchete):
         assert not xarr.data.any()
 
 
-def test_single_zarr_time(zarr_single_mapchete_time):
-    mp = zarr_single_mapchete_time.mp()
-    data_tile = zarr_single_mapchete_time.first_process_tile()
+def test_single_zarr_time(zarr_single_time_mapchete):
+    mp = zarr_single_time_mapchete.mp()
+    data_tile = zarr_single_time_mapchete.first_process_tile()
 
     # basic functions
     for empty_xarr in mp.config.output.empty(data_tile):

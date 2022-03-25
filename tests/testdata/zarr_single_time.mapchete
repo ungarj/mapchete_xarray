@@ -11,7 +11,7 @@ output:
     time:
         start: 2022-03-01
         end: 2022-03-31
-        steps: 1d
+        pattern: 0 0 * * *
         # steps:
         #   - 2022-03-01
         #   - 2022-03-03
