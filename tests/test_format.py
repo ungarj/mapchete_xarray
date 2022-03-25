@@ -359,26 +359,24 @@ def test_single_zarr(zarr_single_mapchete):
         assert xarr.data.all()
         assert not set(("X", "Y")).difference(set(xarr.dims))
 
+
+def test_single_zarr_empty(zarr_single_mapchete):
+    mp = zarr_single_mapchete.mp()
     # handle empty data
-    process_tile = next(mp.get_process_tiles(5))
+    process_tile = zarr_single_mapchete.first_process_tile()
     mp.config.output.write(process_tile, mp.config.output.empty(process_tile))
     # check if tile exists
     assert not mp.config.output.tiles_exist(process_tile)
-    xarr = mp.config.output.read(process_tile)
-    assert isinstance(xarr, xr.DataArray)
-    assert not xarr.data.any()
+    for xarr in mp.config.output.read(process_tile):
+        assert isinstance(xarr, xr.DataArray)
+        assert not xarr.data.any()
 
-    # write nodata array
-    process_tile = next(mp.get_process_tiles(7))
-    mp.config.output.write(process_tile, xr.DataArray(np.zeros(process_tile.shape)))
+    # write empty DataArray
+    mp.config.output.write(
+        process_tile, xr.DataArray(np.zeros((3, *process_tile.shape)))
+    )
     # check if tile exists
     assert not mp.config.output.tiles_exist(process_tile)
-    xarr = mp.config.output.read(process_tile)
-    assert isinstance(xarr, xr.DataArray)
-    assert not xarr.data.any()
-
-    # # write zarr
-    # list(mp.compute(concurrency=None))
-
-    # # read output
-    # 1 / 0
+    for xarr in mp.config.output.read(process_tile):
+        assert isinstance(xarr, xr.DataArray)
+        assert not xarr.data.any()

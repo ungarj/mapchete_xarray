@@ -116,7 +116,7 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         )
         try:
             zarr.consolidate_metadata(self.path)
-            self.ds = xr.open_dataset(self.path, mask_and_scale=False, cache=False)
+            self.ds = xr.open_zarr(self.path, mask_and_scale=False, cache=False)
         except Exception:
             self.ds = None
 
@@ -159,7 +159,7 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
 
     def _read(self, bounds):
         # if self.ds is None:
-        with xr.open_dataset(self.path, mask_and_scale=False) as ds:
+        with xr.open_zarr(self.path, mask_and_scale=False) as ds:
             # TODO: find method to check whether tile output was already written
             minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(bounds)
             for data_var, data in ds.data_vars.items():
@@ -242,13 +242,21 @@ class XarrayZarrOutputDataWriter(
         process_tile : ``BufferedTile``
             must be member of process ``TilePyramid``
         """
+        for band in data:
+            if band.shape == (0,):
+                logger.debug("output empty, nothing to write")
+                return
         minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(process_tile.bounds)
-        print(data)
+        coords = {
+            self.y_axis_name: np.arange(process_tile.height),
+            self.x_axis_name: np.arange(process_tile.width),
+        }
         with xr.Dataset(
             data_vars={
-                f"Band{i}": ([self.y_axis_name, self.x_axis_name], array)
-                for i, array in zip(range(1, self.count + 1), data.values)
-            }
+                f"Band{i}": ([self.y_axis_name, self.x_axis_name], band.values)
+                for i, band in zip(range(1, self.count + 1), data)
+            },
+            coords=coords,
         ) as ds:
             ds.to_zarr(
                 self.path,
