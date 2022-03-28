@@ -6,6 +6,7 @@ import os
 from tilematrix._funcs import Bounds
 import xarray as xr
 from zarr.storage import FSStore
+import croniter
 
 
 def initialize_zarr(
@@ -23,7 +24,22 @@ def initialize_zarr(
     area_or_point="Area",
 ):
     fs = fs_from_path(path)
-    # if time is not None:
+
+    if time:
+        coord_time = [
+            t
+            for t in croniter.croniter_range(
+                time["start"],
+                time["end"],
+                time["pattern"],
+            )
+        ]
+
+        output_shape = (len(coord_time), *shape)
+        output_chunks = (time["chunksize"], chunksize, chunksize)
+    else:
+        output_shape = shape
+        output_chunks = (chunksize, chunksize)
 
     height, width = shape
     bounds = Bounds(*bounds)
@@ -33,19 +49,29 @@ def initialize_zarr(
     coord_x = [bounds.left + pixel_x_size / 2 + i * pixel_x_size for i in range(width)]
     coord_y = [bounds.top + pixel_y_size / 2 + i * pixel_y_size for i in range(height)]
     array = da.full(
-        shape=shape, fill_value=fill_value, chunks=(chunksize, chunksize), dtype=dtype
+        shape=output_shape,
+        fill_value=fill_value,
+        chunks=output_chunks,
+        dtype=dtype,
     )
-    ds = xr.Dataset(
-        coords={
-            x_axis_name: ([x_axis_name], coord_x),
-            y_axis_name: ([y_axis_name], coord_y),
-        },
-        data_vars={
-            f"Band{i}": ([y_axis_name, x_axis_name], array) for i in range(1, count + 1)
-        },
+    coords = {
+        x_axis_name: ([x_axis_name], coord_x),
+        y_axis_name: ([y_axis_name], coord_y),
+    }
+
+    axis_names = (
+        ["time", y_axis_name, x_axis_name] if time else [y_axis_name, x_axis_name]
     )
+
+    data_vars = {f"Band{i}": ([*axis_names], array) for i in range(1, count + 1)}
+
+    if time:
+        coords["time"] = coord_time
+
+    ds = xr.Dataset(coords=coords, data_vars=data_vars)
+
     attrs = {
-        "_ARRAY_DIMENSIONS": [y_axis_name, x_axis_name],
+        "_ARRAY_DIMENSIONS": axis_names,
         # xarray cannot write attributes values as dictionaries!
         # "_CRS": {"wkt": crs.wkt},
         "AREA_OR_POINT": area_or_point,

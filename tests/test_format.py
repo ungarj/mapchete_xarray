@@ -4,6 +4,7 @@ from mapchete.formats import available_output_formats
 import numpy as np
 import pytest
 import xarray as xr
+import dateutil
 
 from mapchete.testing import get_process_mp
 
@@ -432,9 +433,9 @@ def test_single_zarr_empty_s3(zarr_single_s3_mapchete):
         assert not xarr.data.any()
 
 
-def test_single_zarr_time(zarr_single_mapchete_time):
-    mp = zarr_single_mapchete_time.mp()
-    data_tile = zarr_single_mapchete_time.first_process_tile()
+def test_single_zarr_time(zarr_single_time_mapchete):
+    mp = zarr_single_time_mapchete.mp()
+    data_tile = zarr_single_time_mapchete.first_process_tile()
 
     # basic functions
     for empty_xarr in mp.config.output.empty(data_tile):
@@ -456,7 +457,7 @@ def test_single_zarr_time(zarr_single_mapchete_time):
     # read again, this time with data
     for xarr in mp.config.output.read(data_tile):
         assert isinstance(xarr, xr.DataArray)
-        assert xarr.data.all()
+        assert xarr.data.any()
         assert not set(("time", "X", "Y")).difference(set(xarr.dims))
 
 
@@ -473,8 +474,18 @@ def test_single_zarr_time_empty(zarr_single_time_mapchete):
 
     # write empty DataArray
     # NOTE: this probably will fail because DataArray has no time coords
+    timestamps = [
+        dateutil.parser.parse(t)
+        for t in ["2022-03-01", "2022-03-04", "2022-03-07", "2022-03-09"]
+    ]
+
     mp.config.output.write(
-        process_tile, xr.DataArray(np.zeros((3, *process_tile.shape)))
+        process_tile,
+        xr.DataArray(
+            data=np.zeros((3, len(timestamps), *process_tile.shape)),
+            dims=["band", "time", "Y", "X"],
+            coords={"time": timestamps},
+        ),
     )
     # check if tile exists
     assert not mp.config.output.tiles_exist(process_tile)

@@ -1,4 +1,4 @@
-import datetutil
+import dateutil
 import json
 from mapchete.io import fs_from_path
 import os
@@ -66,7 +66,12 @@ def test_initialize_zarr_time(tmpdir):
         bounds=(0, 10, 10, 20),
         shape=(1024, 1024),
         crs=tp.crs,
-        time=dict(start="2022-03-01", end="2022-03-31", steps="1d", chunksize=10),
+        time=dict(
+            start=dateutil.parser.parse("2022-03-01"),
+            end=dateutil.parser.parse("2022-03-31"),
+            pattern="0 0 * * *",
+            chunksize=10,
+        ),
         fill_value=0,
         chunksize=256,
         count=3,
@@ -111,9 +116,6 @@ def test_initialize_zarr_time(tmpdir):
                 elif array_name == "time":
                     assert array.shape == (31,)
                     assert array.chunks == (31,)
+                    assert array.attrs["units"] == "days since 2022-03-01 00:00:00"
                     for coord in array[:]:
-                        assert (
-                            datetutil.parser.parse("2022-03-01")
-                            <= coord
-                            <= datetutil.parser.parse("2022-03-31")
-                        )
+                        assert 0 <= coord <= 30

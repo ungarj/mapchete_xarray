@@ -14,6 +14,8 @@ from tilematrix import Bounds
 import xarray as xr
 import zarr
 from zarr.storage import FSStore
+from datetime import datetime
+import croniter
 
 
 from mapchete_xarray._zarr import initialize_zarr
@@ -89,7 +91,6 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         self.fs = fs_from_path(self.path)
         self.output_params = output_params
         self.zoom = output_params["delimiters"]["zoom"][0]
-        self.fill_value = output_params.get("fill_value", 0)
         self.count = output_params.get("bands", 1)
         self.dtype = output_params.get("dtype", "uint8")
         self.x_axis_name = output_params.get("x_axis_name", "X")
@@ -119,10 +120,10 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         self.time = output_params.get("time", {})
         self.start_time = self.time.get("start")
         self.end_time = self.time.get("end")
+
         try:
-            zarr.consolidate_metadata(self.path)
-            self.ds = xr.open_zarr(self.path, mask_and_scale=False, cache=False)
-        except Exception:
+            self.ds = xr.open_zarr(self.path, mask_and_scale=False)
+        except zarr.errors.GroupNotFoundError:
             self.ds = None
 
     def read(self, output_tile):
@@ -162,27 +163,22 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
             out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
         )
 
-    def _time_to_ranges(self, timestamps):
-        # get start and end time from timestamps
-        # start = min(timestamps)
-        # end = max(timestamps)
-        # get array index form start and end time
-        # for i, t in enumerate(timerange(self.start_time, self.end_time, self.time_steps)):
-        #     if t == start:
-        #         start_idx = i
-        #     if t == end:
-        #         end_idx = i
-        # return (start_idx, end_idx)
-        raise NotImplementedError()
+    def _time_to_indices(self, timestamps):
+        return [list(self.ds.time.values).index(t) for t in timestamps]
 
     def _read(self, bounds):
-        # if self.ds is None:
+
+        selector = {
+            self.x_axis_name: slice(bounds.left, bounds.right),
+            self.y_axis_name: slice(bounds.top, bounds.bottom),
+        }
+
+        if self.time:
+            selector["time"] = slice(self.start_time, self.end_time)
+
         with xr.open_zarr(self.path, mask_and_scale=False) as ds:
-            # TODO: find method to check whether tile output was already written
-            minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(bounds)
-            for data_var, data in ds.data_vars.items():
-                arr = data[minrow:maxrow, mincol:maxcol]
-                yield arr
+            for data_var, data in ds.sel(**selector).data_vars.items():
+                yield data
 
 
 class XarrayZarrOutputDataWriter(
@@ -203,8 +199,9 @@ class XarrayZarrOutputDataWriter(
                 bounds=self.bounds,
                 shape=self.shape,
                 crs=self.pyramid.crs,
+                time=self.time,
                 chunksize=self.pyramid.tile_size * self.pyramid.metatiling,
-                fill_value=self.fill_value,
+                fill_value=self.nodata,
                 count=self.count,
                 dtype=self.dtype,
                 x_axis_name=self.x_axis_name,
@@ -265,10 +262,7 @@ class XarrayZarrOutputDataWriter(
                 logger.debug("output empty, nothing to write")
                 return
         minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(process_tile.bounds)
-        coords = {
-            self.y_axis_name: np.arange(process_tile.height),
-            self.x_axis_name: np.arange(process_tile.width),
-        }
+        coords = {}
         region = {
             self.x_axis_name: slice(mincol, maxcol),
             self.y_axis_name: slice(minrow, maxrow),
@@ -277,9 +271,18 @@ class XarrayZarrOutputDataWriter(
 
         if self.time:
             coords["time"] = data.time.values
-            start_time, end_time = self._time_to_ranges(data.time.values)
-            region["time"] = slice(start_time, end_time)
+            time_regions = [
+                slice(idx, idx + 1) for idx in self._time_to_indices(data.time.values)
+            ]
             axis_names = ["time"] + axis_names
+
+        def write_zarr(_ds, _region):
+            _ds.to_zarr(
+                FSStore(self.path),
+                compute=True,
+                safe_chunks=True,
+                region=_region,
+            )
 
         with xr.Dataset(
             data_vars={
@@ -288,12 +291,15 @@ class XarrayZarrOutputDataWriter(
             },
             coords=coords,
         ) as ds:
-            ds.to_zarr(
-                FSStore(self.path),
-                compute=True,
-                safe_chunks=True,
-                region=region,
-            )
+
+            if self.time:
+                for timestamp, time_region in zip(data.time.values, time_regions):
+                    write_zarr(
+                        ds.sel(time=[timestamp]),
+                        region | {"time": time_region},
+                    )
+            else:
+                write_zarr(ds, region)
 
     def output_is_valid(self, process_data):
         """
