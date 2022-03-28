@@ -91,7 +91,6 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         self.fs = fs_from_path(self.path)
         self.output_params = output_params
         self.zoom = output_params["delimiters"]["zoom"][0]
-        self.fill_value = output_params.get("fill_value", 0)
         self.count = output_params.get("bands", 1)
         self.dtype = output_params.get("dtype", "uint8")
         self.x_axis_name = output_params.get("x_axis_name", "X")
@@ -121,10 +120,10 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         self.time = output_params.get("time", {})
         self.start_time = self.time.get("start")
         self.end_time = self.time.get("end")
+
         try:
-            zarr.consolidate_metadata(self.path)
-            self.ds = xr.open_zarr(self.path, mask_and_scale=False, cache=False)
-        except Exception:
+            self.ds = xr.open_zarr(self.path, mask_and_scale=False)
+        except zarr.errors.GroupNotFoundError:
             self.ds = None
 
     def read(self, output_tile):
@@ -165,29 +164,21 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         )
 
     def _time_to_indices(self, timestamps):
-
-        time_axis = [
-            t
-            for t in croniter.croniter_range(
-                self.time["start"],
-                self.time["end"],
-                self.time["pattern"],
-            )
-        ]
-
-        return [
-            time_axis.index(datetime.utcfromtimestamp(t.tolist() / 1e9))
-            for t in timestamps
-        ]
+        return [list(self.ds.time.values).index(t) for t in timestamps]
 
     def _read(self, bounds):
-        # if self.ds is None:
+
+        selector = {
+            self.x_axis_name: slice(bounds.left, bounds.right),
+            self.y_axis_name: slice(bounds.top, bounds.bottom),
+        }
+
+        if self.time:
+            selector["time"] = slice(self.start_time, self.end_time)
+
         with xr.open_zarr(self.path, mask_and_scale=False) as ds:
-            # TODO: find method to check whether tile output was already written
-            minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(bounds)
-            for data_var, data in ds.data_vars.items():
-                arr = data[minrow:maxrow, mincol:maxcol]
-                yield arr
+            for data_var, data in ds.sel(**selector).data_vars.items():
+                yield data
 
 
 class XarrayZarrOutputDataWriter(
@@ -210,7 +201,7 @@ class XarrayZarrOutputDataWriter(
                 crs=self.pyramid.crs,
                 time=self.time,
                 chunksize=self.pyramid.tile_size * self.pyramid.metatiling,
-                fill_value=self.fill_value,
+                fill_value=self.nodata,
                 count=self.count,
                 dtype=self.dtype,
                 x_axis_name=self.x_axis_name,
@@ -271,10 +262,7 @@ class XarrayZarrOutputDataWriter(
                 logger.debug("output empty, nothing to write")
                 return
         minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(process_tile.bounds)
-        coords = {
-            self.y_axis_name: np.arange(process_tile.height),
-            self.x_axis_name: np.arange(process_tile.width),
-        }
+        coords = {}
         region = {
             self.x_axis_name: slice(mincol, maxcol),
             self.y_axis_name: slice(minrow, maxrow),

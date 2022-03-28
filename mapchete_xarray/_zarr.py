@@ -8,6 +8,7 @@ import xarray as xr
 from zarr.storage import FSStore
 import croniter
 
+
 def initialize_zarr(
     path=None,
     bounds=None,

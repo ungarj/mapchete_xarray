@@ -11,20 +11,17 @@ def test_convert_to_xarray(convert_to_xarray_mapchete):
     output = convert_to_xarray.execute(mp)
     assert isinstance(output, xr.DataArray)
     assert output.data.all()
-    assert ('bands', 'x', 'y') == output.dims
+    assert ("bands", "x", "y") == output.dims
     assert output.data.shape[-2:] == mp.tile.shape
 
     # band name
     output = convert_to_xarray.execute(mp, band_names=["elevation"])
     assert isinstance(output, xr.DataArray)
     assert output.data.all()
-    assert ('bands', 'x', 'y') == output.dims
+    assert ("bands", "x", "y") == output.dims
     assert output.data.shape[-2:] == mp.tile.shape
     assert isinstance(output.loc["elevation"], xr.DataArray)
 
     mp = convert_to_xarray_mapchete.process_mp(tile=(5, 0, 0))
     output = convert_to_xarray.execute(mp)
     assert output == "empty"
-
-
-
