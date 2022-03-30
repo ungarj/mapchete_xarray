@@ -1,12 +1,12 @@
 import dask.array as da
 import json
 from mapchete.io import fs_from_path
-import numpy as np
 import os
 from tilematrix._funcs import Bounds
 import xarray as xr
 from zarr.storage import FSStore
 import croniter
+import zarr
 
 
 def initialize_zarr(
@@ -93,5 +93,7 @@ def initialize_zarr(
         metadata["_CRS"] = {"wkt": crs.wkt}
         with fs.open(attrs_path, mode="w") as dst:
             dst.write(json.dumps(metadata))
+
+    zarr.consolidate_metadata(path)
 
     return ds
