@@ -168,7 +168,7 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         slice_idxs = list()
         slice_timestamps = list()
 
-        for t in timestamps:
+        for t in sorted(timestamps):
             idx = list(self.ds.time.values).index(t)
 
             if slice_idxs and idx > slice_idxs[-1] + 1:
