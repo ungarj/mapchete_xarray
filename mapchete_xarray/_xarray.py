@@ -163,8 +163,24 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
             out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
         )
 
-    def _time_to_indices(self, timestamps):
-        return [list(self.ds.time.values).index(t) for t in timestamps]
+    def _timestamp_regions(self, timestamps):
+
+        slice_idxs = list()
+        slice_timestamps = list()
+
+        for t in timestamps:
+            idx = list(self.ds.time.values).index(t)
+
+            if slice_idxs and idx > slice_idxs[-1] + 1:
+                yield slice_timestamps, slice(slice_idxs[0], slice_idxs[-1] + 1)
+                slice_idxs = list()
+                slice_timestamps = list()
+
+            slice_idxs.append(idx)
+            slice_timestamps.append(t)
+
+        if slice_idxs:
+            yield slice_timestamps, slice(slice_idxs[0], slice_idxs[-1] + 1)
 
     def _read(self, bounds):
 
@@ -271,9 +287,6 @@ class XarrayZarrOutputDataWriter(
 
         if self.time:
             coords["time"] = data.time.values
-            time_regions = [
-                slice(idx, idx + 1) for idx in self._time_to_indices(data.time.values)
-            ]
             axis_names = ["time"] + axis_names
 
         def write_zarr(_ds, _region):
@@ -293,9 +306,11 @@ class XarrayZarrOutputDataWriter(
         ) as ds:
 
             if self.time:
-                for timestamp, time_region in zip(data.time.values, time_regions):
+                for timestamps, time_region in self._timestamp_regions(
+                    data.time.values
+                ):
                     write_zarr(
-                        ds.sel(time=[timestamp]),
+                        ds.sel(time=timestamps),
                         region | {"time": time_region},
                     )
             else:
