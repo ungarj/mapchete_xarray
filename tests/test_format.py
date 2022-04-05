@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 import xarray as xr
 import dateutil
+import json
 
 from mapchete.testing import get_process_mp
 
@@ -354,11 +355,18 @@ def test_single_zarr(zarr_single_mapchete):
     # check if output_tile exists
     assert mp.config.output.tiles_exist(output_tile=data_tile)
 
-    # read again, this time with data
-    for xarr in mp.config.output.read(data_tile):
-        assert isinstance(xarr, xr.DataArray)
-        assert xarr.data.all()
-        assert not set(("X", "Y")).difference(set(xarr.dims))
+    with open(mp.config.output.path + "/.zmetadata") as f:
+        zmetadata = json.load(f)
+
+        # read again, this time with data
+        for xarr in mp.config.output.read(data_tile):
+            assert isinstance(xarr, xr.DataArray)
+            assert xarr.data.all()
+            assert not set(("X", "Y")).difference(set(xarr.dims))
+
+            zattrs = zmetadata["metadata"].get(f"{xarr.name}/.zattrs")
+            for attr in ["AREA_OR_POINT", "_ARRAY_DIMENSIONS", "_CRS"]:
+                assert attr in zattrs
 
 
 def test_single_zarr_empty(zarr_single_mapchete):
