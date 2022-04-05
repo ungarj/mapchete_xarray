@@ -13,5 +13,5 @@ def execute(mp, bands=3, dtype="uint16", x_axis_name="X", y_axis_name="Y"):
     )
 
     return xr.DataArray(
-        data=data, dims=["band", "time", "Y", "X"], coords={"time": timestamps}
+        data=data, dims=["band", "time", y_axis_name, x_axis_name], coords={"time": timestamps}
     )
