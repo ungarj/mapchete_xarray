@@ -309,10 +309,8 @@ class XarrayZarrOutputDataWriter(
                 for timestamps, time_region in self._timestamp_regions(
                     data.time.values
                 ):
-                    write_zarr(
-                        ds.sel(time=timestamps),
-                        region | {"time": time_region},
-                    )
+                    region["time"] = time_region
+                    write_zarr(ds.sel(time=timestamps), region)
             else:
                 write_zarr(ds, region)
 
