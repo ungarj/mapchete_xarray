@@ -305,6 +305,18 @@ class XarrayZarrOutputDataWriter(
             coords=coords,
         ) as ds:
 
+            for data_var in self.ds.data_vars:
+                for init_axis_chunksize, axis in zip(
+                    self.ds[data_var].data.chunksize[-2:],
+                    [self.y_axis_name, self.x_axis_name],
+                ):
+                    process_chunksize = region[axis].stop - region[axis].start
+                    if process_chunksize % init_axis_chunksize != 0:
+                        raise ValueError(
+                            f"process chunksize (process tilesize) = {process_chunksize} must be a multiple "
+                            f"of initialized chunksize (output tilesize) = {init_axis_chunksize}"
+                        )
+
             if self.time:
                 for timestamps, time_region in self._timestamp_regions(
                     data.time.values
