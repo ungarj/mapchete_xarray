@@ -7,6 +7,7 @@ import xarray as xr
 from zarr.storage import FSStore
 import croniter
 import zarr
+import dateutil
 
 
 def initialize_zarr(
@@ -26,11 +27,23 @@ def initialize_zarr(
     fs = fs_from_path(path)
 
     if time:
+        start_time = (
+            dateutil.parser.parse(time["start"])
+            if isinstance(time["start"], str)
+            else time["start"]
+        )
+
+        end_time = (
+            dateutil.parser.parse(time["end"])
+            if isinstance(time["end"], str)
+            else time["end"]
+        )
+
         coord_time = [
             t
             for t in croniter.croniter_range(
-                time["start"],
-                time["end"],
+                start_time,
+                end_time,
                 time["pattern"],
             )
         ]
