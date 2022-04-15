@@ -358,8 +358,12 @@ class XarrayZarrOutputDataWriter(
 
     def close(self, exc_type=None, exc_value=None, exc_traceback=None):
         """Gets called if process is closed."""
-        logger.debug("close %s", self.ds)
-        self.ds.close()
+        try:
+            logger.debug("close %s", self.ds)
+            self.ds.close()
+        except Exception as e:
+            logger.debug(e)
+
 
 
 class XarrayTileDirectoryOutputDataReader(base.TileDirectoryOutputReader):
