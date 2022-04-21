@@ -122,8 +122,8 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         self.end_time = self.time.get("end")
 
         try:
-            self.ds = xr.open_zarr(self.path, mask_and_scale=False)
-        except zarr.errors.GroupNotFoundError:
+            self.ds = xr.open_zarr(self.path, mask_and_scale=False, consolidated=True)
+        except (zarr.errors.GroupNotFoundError, KeyError):
             self.ds = None
 
     def read(self, output_tile):
@@ -363,7 +363,6 @@ class XarrayZarrOutputDataWriter(
             self.ds.close()
         except Exception as e:
             logger.debug(e)
-
 
 
 class XarrayTileDirectoryOutputDataReader(base.TileDirectoryOutputReader):
