@@ -123,11 +123,6 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         self.end_time = self.time.get("end")
 
         self._ds = None
-        #
-        # try:
-        #
-        # except (zarr.errors.GroupNotFoundError, KeyError):
-        #     self.ds = None
 
     @property
     def ds(self):
