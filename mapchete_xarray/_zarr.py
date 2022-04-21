@@ -93,5 +93,3 @@ def initialize_zarr(
         attrs["AREA_OR_POINT"] = area_or_point
 
     zarr.consolidate_metadata(path)
-
-    return ds
