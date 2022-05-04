@@ -1,4 +1,7 @@
+dask
 mapchete[s3]>=2021.11.0
 netCDF4
 xarray
 zarr
+python-dateutil
+croniter

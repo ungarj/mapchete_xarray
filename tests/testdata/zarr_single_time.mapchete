@@ -1,0 +1,23 @@
+process: single_zarr_time_process.py
+zoom_levels: 5
+input:
+output:
+    format: xarray
+    path: temp.zarr
+    dtype: uint16
+    bands: 3
+    storage: zarr
+    chunksize: 256
+    time:
+        start: 2022-03-01
+        end: 2022-03-31
+        pattern: 0 0 * * *
+        # steps:
+        #   - 2022-03-01
+        #   - 2022-03-03
+        #   - 2022-03-04
+        #   - 2022-03-07
+        chunksize: 10
+pyramid:
+    grid: geodetic
+    metatiling: 1

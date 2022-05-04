@@ -13,11 +13,12 @@ SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(SCRIPT_DIR, "testdata")
 S3_TEMP_DIR = "s3://mapchete-test/tmp/" + uuid.uuid4().hex
 
-# temporary directory for I/O tests
+
 @pytest.fixture
 def mp_s3_tmpdir():
     """Setup and teardown temporary directory."""
     fs = fs_from_path(S3_TEMP_DIR)
+
     def _cleanup():
         try:
             fs.rm(S3_TEMP_DIR, recursive=True)
@@ -33,8 +34,7 @@ def mp_s3_tmpdir():
 def written_output():
     with TemporaryDirectory() as tempdir:
         with ProcessFixture(
-            os.path.join(TESTDATA_DIR, "example.mapchete"),
-            output_tempdir=tempdir
+            os.path.join(TESTDATA_DIR, "example.mapchete"), output_tempdir=tempdir
         ) as example:
             data_tile = next(example.mp().get_process_tiles(5))
             example.mp().batch_process(tile=data_tile.id)
@@ -45,20 +45,43 @@ def written_output():
 def example_config():
     with TemporaryDirectory() as tempdir:
         with ProcessFixture(
-            os.path.join(TESTDATA_DIR, "example.mapchete"),
-            output_tempdir=tempdir
+            os.path.join(TESTDATA_DIR, "example.mapchete"), output_tempdir=tempdir
         ) as example:
             yield example
 
 
 @pytest.fixture
-def zarr_config():
-    with TemporaryDirectory() as tempdir:
-        with ProcessFixture(
-            os.path.join(TESTDATA_DIR, "zarr_example.mapchete"),
-            output_tempdir=tempdir
-        ) as example:
-            yield example
+def zarr_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "zarr.mapchete"),
+    ) as example:
+        yield example
+
+
+@pytest.fixture
+def zarr_single_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "zarr_single.mapchete"),
+    ) as example:
+        yield example
+
+
+@pytest.fixture
+def zarr_single_s3_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "zarr_single.mapchete"),
+        output_tempdir=os.path.join(S3_TEMP_DIR),
+        output_suffix=".zarr",
+    ) as example:
+        yield example
+
+
+@pytest.fixture
+def zarr_single_time_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "zarr_single_time.mapchete"),
+    ) as example:
+        yield example
 
 
 @pytest.fixture
@@ -66,7 +89,7 @@ def xarray_tiledir_input_mapchete():
     with TemporaryDirectory() as tempdir:
         with ProcessFixture(
             os.path.join(TESTDATA_DIR, "xarray_tiledir_input.mapchete"),
-            output_tempdir=tempdir
+            output_tempdir=tempdir,
         ) as example:
             yield example
 
@@ -76,7 +99,7 @@ def xarray_mapchete_input_mapchete():
     with TemporaryDirectory() as tempdir:
         with ProcessFixture(
             os.path.join(TESTDATA_DIR, "xarray_mapchete_input.mapchete"),
-            output_tempdir=tempdir
+            output_tempdir=tempdir,
         ) as example:
             yield example
 
@@ -86,6 +109,11 @@ def convert_to_xarray_mapchete():
     with TemporaryDirectory() as tempdir:
         with ProcessFixture(
             os.path.join(TESTDATA_DIR, "convert_to_xarray.mapchete"),
-            output_tempdir=tempdir
+            output_tempdir=tempdir,
         ) as example:
             yield example
+
+
+@pytest.fixture
+def rgb_tif():
+    return os.path.join(TESTDATA_DIR, "rgb.tif")

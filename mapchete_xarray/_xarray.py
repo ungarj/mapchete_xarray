@@ -1,15 +1,25 @@
 import logging
-from mapchete.config import validate_values
+from mapchete.config import validate_values, snap_bounds
 from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
 from mapchete.io import path_exists, fs_from_path
-from mapchete.io.raster import create_mosaic, extract_from_array
+from mapchete.io.raster import create_mosaic, extract_from_array, bounds_to_ranges
 from mapchete.tile import BufferedTile
+import math
 import numpy as np
 import os
+from rasterio.transform import from_origin
 import tempfile
+from tilematrix import Bounds
 import xarray as xr
 import zarr
+from zarr.storage import FSStore
+from datetime import datetime
+import croniter
+import dask.array as da
+
+
+from mapchete_xarray._zarr import initialize_zarr
 
 
 logger = logging.getLogger(__name__)
@@ -17,10 +27,361 @@ logger = logging.getLogger(__name__)
 METADATA = {"driver_name": "xarray", "data_type": "raster", "mode": "w"}
 
 
-class OutputDataReader(base.TileDirectoryOutputReader):
+class OutputDataWriter:
+    """
+    Constructor class which either returns XarraySingleFileOutputWriter or
+    XarrayTileDirectoryOutputWriter.
+
+    Parameters
+    ----------
+    output_params : dictionary
+        output parameters from Mapchete file
+
+    Attributes
+    ----------
+    path : string
+        path to output directory
+    file_extension : string
+        file extension for output files (.tif)
+    output_params : dictionary
+        output parameters from Mapchete file
+    nodata : integer or float
+        nodata value used when writing GeoTIFFs
+    pixelbuffer : integer
+        buffer around output tiles
+    pyramid : ``tilematrix.TilePyramid``
+        output ``TilePyramid``
+    crs : ``rasterio.crs.CRS``
+        object describing the process coordinate reference system
+    srid : string
+        spatial reference ID of CRS (e.g. "{'init': 'epsg:4326'}")
+    """
+
+    def __new__(self, output_params, **kwargs):
+        """Initialize."""
+        self.path = output_params["path"]
+        self.file_extension = ".zarr"
+        if self.path.endswith(self.file_extension):
+            return XarrayZarrOutputDataWriter(output_params, **kwargs)
+        else:
+            return XarrayTileDirectoryOutputDataWriter(output_params, **kwargs)
+
+
+class OutputDataReader:
+    def __new__(self, output_params, **kwargs):
+        """Initialize."""
+        self.path = output_params["path"]
+        self.file_extension = ".zarr"
+        if self.path.endswith(self.file_extension):
+            return XarrayZarrOutputDataReader(output_params, **kwargs)
+        else:
+            return XarrayTileDirectoryOutputDataReader(output_params, **kwargs)
+
+
+class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
+
+    METADATA = METADATA
+
+    def __init__(self, output_params, *args, **kwargs):
+        super().__init__(output_params)
+        self.output_params = output_params
+        self.nodata = output_params.get("nodata", 0)
+        self.storage = "zarr"
+        self.file_extension = ".zarr"
+        self.path = output_params["path"]
+        self.fs = fs_from_path(self.path)
+        self.output_params = output_params
+        self.zoom = output_params["delimiters"]["zoom"][0]
+        self.count = output_params.get("bands", 1)
+        self.dtype = output_params.get("dtype", "uint8")
+        self.x_axis_name = output_params.get("x_axis_name", "X")
+        self.y_axis_name = output_params.get("y_axis_name", "Y")
+        self.area_or_point = output_params.get("area_or_point", "Area")
+        self.bounds = snap_bounds(
+            bounds=output_params["delimiters"]["process_bounds"],
+            pyramid=self.pyramid,
+            zoom=self.zoom,
+        )
+        self.affine = from_origin(
+            self.bounds.left,
+            self.bounds.top,
+            self.pyramid.pixel_x_size(self.zoom),
+            self.pyramid.pixel_y_size(self.zoom),
+        )
+        self.shape = (
+            math.ceil(
+                (self.bounds.top - self.bounds.bottom)
+                / self.pyramid.pixel_x_size(self.zoom)
+            ),
+            math.ceil(
+                (self.bounds.right - self.bounds.left)
+                / self.pyramid.pixel_x_size(self.zoom)
+            ),
+        )
+        self.time = output_params.get("time", {})
+        self.start_time = self.time.get("start")
+        self.end_time = self.time.get("end")
+
+        self._ds = None
+
+    @property
+    def ds(self):
+        if self._ds is None:
+            self._ds = xr.open_zarr(
+                self.path,
+                mask_and_scale=False,
+                consolidated=True,
+                chunks=None,
+            )
+        return self._ds
+
+    def read(self, output_tile):
+        """
+        Read existing process output.
+
+        Parameters
+        ----------
+        output_tile : ``BufferedTile``
+            must be member of output ``TilePyramid``
+
+        Returns
+        -------
+        process output : array or list
+        """
+        return list(self._read(bounds=output_tile.bounds))
+
+    def empty(self, process_tile):
+        """
+        Return empty data.
+
+        Parameters
+        ----------
+        process_tile : ``BufferedTile``
+            must be member of process ``TilePyramid``
+
+        Returns
+        -------
+        empty data : array or list
+            empty array with correct data type for raster data or empty list
+            for vector data
+        """
+        return [xr.DataArray([]) for _ in range(self.count)]
+
+    def _bounds_to_ranges(self, bounds):
+        return bounds_to_ranges(
+            out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
+        )
+
+    def _timestamp_regions(self, timestamps):
+
+        slice_idxs = list()
+        slice_timestamps = list()
+
+        for t in sorted(timestamps):
+            idx = list(self.ds.time.values).index(t)
+
+            if slice_idxs and idx > slice_idxs[-1] + 1:
+                yield slice_timestamps, slice(slice_idxs[0], slice_idxs[-1] + 1)
+                slice_idxs = list()
+                slice_timestamps = list()
+
+            slice_idxs.append(idx)
+            slice_timestamps.append(t)
+
+        if slice_idxs:
+            yield slice_timestamps, slice(slice_idxs[0], slice_idxs[-1] + 1)
+
+    def _read(self, bounds):
+
+        selector = {
+            self.x_axis_name: slice(bounds.left, bounds.right),
+            self.y_axis_name: slice(bounds.top, bounds.bottom),
+        }
+
+        if self.time:
+            selector["time"] = slice(self.start_time, self.end_time)
+
+        for data_var, data in self.ds.sel(**selector).data_vars.items():
+            yield data
+
+
+class XarrayZarrOutputDataWriter(
+    base.SingleFileOutputWriter, XarrayZarrOutputDataReader
+):
+
+    METADATA = METADATA
+
+    def __init__(self, output_params, *args, **kwargs):
+        super().__init__(output_params)
+
+    def prepare(self, process_area=None, **kwargs):
+        # check if archive exists
+        if path_exists(self.path):
+            # todo: verify it is compatible with our output parameters / chunking
+            pass
+        else:
+            # if not, create an empty one
+            initialize_zarr(
+                path=self.path,
+                bounds=self.bounds,
+                shape=self.shape,
+                crs=self.pyramid.crs,
+                time=self.time,
+                chunksize=self.pyramid.tile_size * self.pyramid.metatiling,
+                fill_value=self.nodata,
+                count=self.count,
+                dtype=self.dtype,
+                x_axis_name=self.x_axis_name,
+                y_axis_name=self.y_axis_name,
+                area_or_point=self.area_or_point,
+            )
+
+    def tiles_exist(self, process_tile=None, output_tile=None):
+        """
+        Check whether output tiles of a tile (either process or output) exists.
+
+        Parameters
+        ----------
+        process_tile : ``BufferedTile``
+            must be member of process ``TilePyramid``
+        output_tile : ``BufferedTile``
+            must be member of output ``TilePyramid``
+
+        Returns
+        -------
+        exists : bool
+        """
+        bounds = process_tile.bounds if process_tile else output_tile.bounds
+        for var in self._read(bounds=bounds):
+            if np.any(var != self.nodata):
+                return True
+        return False
+
+    def is_valid_with_config(self, config):
+        """
+        Check if output format is valid with other process parameters.
+
+        Parameters
+        ----------
+        config : dictionary
+            output configuration parameters
+
+        Returns
+        -------
+        is_valid : bool
+        """
+        if len(config["delimiters"]["zoom"]) > 1:
+            raise ValueError("single zarr output can only be used with a single zoom")
+        return validate_values(config, [("path", str)])
+
+    def write(self, process_tile, data):
+        """
+        Write data from one or more process tiles.
+
+        Parameters
+        ----------
+        process_tile : ``BufferedTile``
+            must be member of process ``TilePyramid``
+        """
+        for band in data:
+            if band.shape == (0,):
+                logger.debug("output empty, nothing to write")
+                return
+        minrow, maxrow, mincol, maxcol = self._bounds_to_ranges(process_tile.bounds)
+        coords = {}
+        region = {
+            self.x_axis_name: slice(mincol, maxcol),
+            self.y_axis_name: slice(minrow, maxrow),
+        }
+        axis_names = [self.y_axis_name, self.x_axis_name]
+
+        if self.time:
+            coords["time"] = data.time.values
+            axis_names = ["time"] + axis_names
+
+        def write_zarr(_ds, _region):
+            _ds.to_zarr(
+                FSStore(self.path),
+                compute=True,
+                safe_chunks=True,
+                region=_region,
+            )
+
+        with xr.Dataset(
+            data_vars={
+                f"Band{i}": (axis_names, band.values)
+                for i, band in zip(range(1, self.count + 1), data)
+            },
+            coords=coords,
+        ) as ds:
+
+            # for data_var in self.ds.data_vars:
+            #     for init_axis_chunksize, axis in zip(
+            #         self.ds[data_var].data.chunksize[-2:],
+            #         [self.y_axis_name, self.x_axis_name],
+            #     ):
+            #         process_chunksize = region[axis].stop - region[axis].start
+            #         if process_chunksize % init_axis_chunksize != 0:
+            #             raise ValueError(
+            #                 f"process chunksize (process tilesize) = {process_chunksize} must be a multiple "
+            #                 f"of initialized chunksize (output tilesize) = {init_axis_chunksize}"
+            #             )
+
+            if self.time:
+                for timestamps, time_region in self._timestamp_regions(
+                    data.time.values
+                ):
+                    region["time"] = time_region
+                    write_zarr(ds.sel(time=timestamps), region)
+            else:
+                write_zarr(ds, region)
+
+    def output_is_valid(self, process_data):
+        """
+        Check whether process output is allowed with output driver.
+
+        Parameters
+        ----------
+        process_data : raw process output
+
+        Returns
+        -------
+        True or False
+        """
+        return isinstance(process_data, (xr.DataArray, np.ndarray))
+
+    def output_cleaned(self, process_data):
+        """
+        Return verified and cleaned output.
+
+        Parameters
+        ----------
+        process_data : raw process output
+
+        Returns
+        -------
+        xarray
+        """
+        if isinstance(process_data, xr.DataArray):
+            return process_data
+        return xr.DataArray(process_data)
+
+    def close(self, exc_type=None, exc_value=None, exc_traceback=None):
+        """Gets called if process is closed."""
+        try:
+            logger.debug("close dataset")
+            self.ds.close()
+        except Exception as e:
+            logger.debug(e)
+
+
+class XarrayTileDirectoryOutputDataReader(base.TileDirectoryOutputReader):
+
+    METADATA = METADATA
+
     def __init__(self, output_params, **kwargs):
         """Initialize."""
-        super(OutputDataReader, self).__init__(output_params)
+        super().__init__(output_params)
         self.path = output_params["path"]
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)
@@ -69,13 +430,15 @@ class OutputDataReader(base.TileDirectoryOutputReader):
                 )
 
 
-class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
+class XarrayTileDirectoryOutputDataWriter(
+    base.TileDirectoryOutputWriter, XarrayTileDirectoryOutputDataReader
+):
 
     METADATA = METADATA
 
     def __init__(self, output_params, **kwargs):
         """Initialize."""
-        super(OutputDataWriter, self).__init__(output_params)
+        super().__init__(output_params)
 
     def is_valid_with_config(self, config):
         """
@@ -272,7 +635,7 @@ class OutputDataWriter(base.TileDirectoryOutputWriter, OutputDataReader):
         resampling=None,
         dst_nodata=None,
         gdal_opts=None,
-        **kwargs
+        **kwargs,
     ):
         """
         Read reprojected & resampled input data.
