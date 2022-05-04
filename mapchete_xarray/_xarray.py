@@ -16,6 +16,7 @@ import zarr
 from zarr.storage import FSStore
 from datetime import datetime
 import croniter
+import dask.array as da
 
 
 from mapchete_xarray._zarr import initialize_zarr
@@ -121,10 +122,18 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         self.start_time = self.time.get("start")
         self.end_time = self.time.get("end")
 
-        try:
-            self.ds = xr.open_zarr(self.path, mask_and_scale=False)
-        except zarr.errors.GroupNotFoundError:
-            self.ds = None
+        self._ds = None
+
+    @property
+    def ds(self):
+        if self._ds is None:
+            self._ds = xr.open_zarr(
+                self.path,
+                mask_and_scale=False,
+                consolidated=True,
+                chunks=None,
+            )
+        return self._ds
 
     def read(self, output_tile):
         """
@@ -163,8 +172,24 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
             out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
         )
 
-    def _time_to_indices(self, timestamps):
-        return [list(self.ds.time.values).index(t) for t in timestamps]
+    def _timestamp_regions(self, timestamps):
+
+        slice_idxs = list()
+        slice_timestamps = list()
+
+        for t in sorted(timestamps):
+            idx = list(self.ds.time.values).index(t)
+
+            if slice_idxs and idx > slice_idxs[-1] + 1:
+                yield slice_timestamps, slice(slice_idxs[0], slice_idxs[-1] + 1)
+                slice_idxs = list()
+                slice_timestamps = list()
+
+            slice_idxs.append(idx)
+            slice_timestamps.append(t)
+
+        if slice_idxs:
+            yield slice_timestamps, slice(slice_idxs[0], slice_idxs[-1] + 1)
 
     def _read(self, bounds):
 
@@ -176,9 +201,8 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         if self.time:
             selector["time"] = slice(self.start_time, self.end_time)
 
-        with xr.open_zarr(self.path, mask_and_scale=False) as ds:
-            for data_var, data in ds.sel(**selector).data_vars.items():
-                yield data
+        for data_var, data in self.ds.sel(**selector).data_vars.items():
+            yield data
 
 
 class XarrayZarrOutputDataWriter(
@@ -192,9 +216,12 @@ class XarrayZarrOutputDataWriter(
 
     def prepare(self, process_area=None, **kwargs):
         # check if archive exists
-        if self.ds is None:
+        if path_exists(self.path):
+            # todo: verify it is compatible with our output parameters / chunking
+            pass
+        else:
             # if not, create an empty one
-            self.ds = initialize_zarr(
+            initialize_zarr(
                 path=self.path,
                 bounds=self.bounds,
                 shape=self.shape,
@@ -208,7 +235,6 @@ class XarrayZarrOutputDataWriter(
                 y_axis_name=self.y_axis_name,
                 area_or_point=self.area_or_point,
             )
-        # if yes, verify it is compatible with our output parameters
 
     def tiles_exist(self, process_tile=None, output_tile=None):
         """
@@ -227,7 +253,7 @@ class XarrayZarrOutputDataWriter(
         """
         bounds = process_tile.bounds if process_tile else output_tile.bounds
         for var in self._read(bounds=bounds):
-            if not np.all(var == self.nodata):
+            if np.any(var != self.nodata):
                 return True
         return False
 
@@ -271,9 +297,6 @@ class XarrayZarrOutputDataWriter(
 
         if self.time:
             coords["time"] = data.time.values
-            time_regions = [
-                slice(idx, idx + 1) for idx in self._time_to_indices(data.time.values)
-            ]
             axis_names = ["time"] + axis_names
 
         def write_zarr(_ds, _region):
@@ -292,12 +315,24 @@ class XarrayZarrOutputDataWriter(
             coords=coords,
         ) as ds:
 
+            # for data_var in self.ds.data_vars:
+            #     for init_axis_chunksize, axis in zip(
+            #         self.ds[data_var].data.chunksize[-2:],
+            #         [self.y_axis_name, self.x_axis_name],
+            #     ):
+            #         process_chunksize = region[axis].stop - region[axis].start
+            #         if process_chunksize % init_axis_chunksize != 0:
+            #             raise ValueError(
+            #                 f"process chunksize (process tilesize) = {process_chunksize} must be a multiple "
+            #                 f"of initialized chunksize (output tilesize) = {init_axis_chunksize}"
+            #             )
+
             if self.time:
-                for timestamp, time_region in zip(data.time.values, time_regions):
-                    write_zarr(
-                        ds.sel(time=[timestamp]),
-                        region | {"time": time_region},
-                    )
+                for timestamps, time_region in self._timestamp_regions(
+                    data.time.values
+                ):
+                    region["time"] = time_region
+                    write_zarr(ds.sel(time=timestamps), region)
             else:
                 write_zarr(ds, region)
 
@@ -333,8 +368,11 @@ class XarrayZarrOutputDataWriter(
 
     def close(self, exc_type=None, exc_value=None, exc_traceback=None):
         """Gets called if process is closed."""
-        logger.debug("close %s", self.ds)
-        self.ds.close()
+        try:
+            logger.debug("close dataset")
+            self.ds.close()
+        except Exception as e:
+            logger.debug(e)
 
 
 class XarrayTileDirectoryOutputDataReader(base.TileDirectoryOutputReader):
