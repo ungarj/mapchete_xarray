@@ -6,4 +6,4 @@ from mapchete_xarray._xarray import (
 )
 
 __all__ = ["InputTile", "METADATA", "OutputDataWriter", "OutputDataReader"]
-__version__ = "2021.11.0"
+__version__ = "2022.5.0"
