@@ -167,6 +167,18 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         """
         return [xr.DataArray([]) for _ in range(self.count)]
 
+    def open(self, tile, process, **kwargs):  # pragma: no cover
+        """
+        Open process output as input for other process.
+
+        Parameters
+        ----------
+        tile : ``Tile``
+        process : ``MapcheteProcess``
+        kwargs : keyword arguments
+        """
+        return InputTile(tile, process)
+
     def _bounds_to_ranges(self, bounds):
         return bounds_to_ranges(
             out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
