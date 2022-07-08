@@ -140,13 +140,13 @@ def test_write_mapchete_output_metadata(zarr_single_time_mapchete):
 def test_single_zarr_as_input(single_zarr_input_mapchete):
     # use single zarr path as process input
     # TODO create process fixture
-    list(single_zarr_input_mapchete.mp().compute())
+    list(single_zarr_input_mapchete.mp().compute(concurrency=None))
 
 
 def test_single_zarr_mapchete_as_input(single_zarr_process_mapchete):
     # use mapchete process with single zarr output as process input
     # TODO create process fixture
-    list(single_zarr_process_mapchete.mp().compute())
+    list(single_zarr_process_mapchete.mp().compute(concurrency=None))
 
 
 def test_read_as_dataarray():

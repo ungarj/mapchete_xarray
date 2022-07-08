@@ -129,6 +129,7 @@ def single_zarr_input_mapchete():
         with ProcessFixture(
             os.path.join(TESTDATA_DIR, "single_zarr_input.mapchete"),
             output_tempdir=tempdir,
+            output_suffix=".zarr",
         ) as example:
             yield example
 
@@ -139,6 +140,7 @@ def single_zarr_process_mapchete():
         with ProcessFixture(
             os.path.join(TESTDATA_DIR, "single_zarr_process.mapchete"),
             output_tempdir=tempdir,
+            output_suffix=".zarr",
         ) as example:
             yield example
 

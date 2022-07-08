@@ -4,10 +4,15 @@ input:
     zarr: example.zarr
 output:
     format: xarray
-    path: temp
+    path: single_zarr_input.zarr
     dtype: uint16
     bands: 3
     storage: zarr
+    time:
+        start: 2022-03-01
+        end: 2022-03-31
+        pattern: 0 0 * * *
+        chunksize: 10
 pyramid:
     grid: geodetic
     metatiling: 1

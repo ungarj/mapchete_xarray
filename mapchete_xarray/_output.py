@@ -217,7 +217,7 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
         if self.time:
             selector["time"] = slice(self.start_time, self.end_time)
 
-        for data_var, data in self.ds.sel(**selector).data_vars.items():
+        for data in self.ds.sel(**selector).data_vars.values():
             yield data
 
 
@@ -233,17 +233,16 @@ class XarrayZarrOutputDataWriter(
     def prepare(self, process_area=None, **kwargs):
         # check if archive exists
         if path_exists(self.path):
-            # todo: verify it is compatible with our output parameters / chunking
-            attrs = zarr.open(FSStore(f"{self.path}")).attrs
-            mapchete_params = attrs.get("mapchete")
+            # verify it is compatible with our output parameters / chunking
+            archive = zarr.open(FSStore(f"{self.path}"))
+            mapchete_params = archive.attrs.get("mapchete")
             if mapchete_params is None:
                 raise TypeError(
                     f"zarr archive at {self.path} exists but does not hold mapchete metadata"
                 )
             existing = load_metadata(mapchete_params)
-            current = load_metadata(self.output_params)
+            current = load_metadata(dump_metadata(self.output_params))
             compare_metadata_params(existing, current)
-            pass
         else:
             # if not, create an empty one
             initialize_zarr(
