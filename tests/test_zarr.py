@@ -1,12 +1,13 @@
-import dateutil
 import json
-from mapchete.io import fs_from_path
 import os
+
+import dateutil
+import zarr
+from mapchete.io import fs_from_path
 from rasterio.crs import CRS
 from tilematrix import TilePyramid
-import zarr
 
-from mapchete_xarray._zarr import initialize_zarr
+from mapchete_xarray._output import initialize_zarr
 
 
 def test_initialize_zarr(tmpdir):
@@ -119,3 +120,41 @@ def test_initialize_zarr_time(tmpdir):
                     assert array.attrs["units"] == "days since 2022-03-01 00:00:00"
                     for coord in array[:]:
                         assert 0 <= coord <= 30
+
+
+def test_write_mapchete_output_metadata(zarr_single_time_mapchete):
+    # process zarr_single_time_mapchete
+    mp = zarr_single_time_mapchete.mp()
+    list(mp.compute(tile=(5, 0, 0)))
+
+    # verify output data is somewhere in zarr metadata
+    # --> . zarr.open("filtered.zarr") as a:
+    # ...     a.attrs["mapchete"] = dict with process output metadata
+    z = zarr.open(mp.config.output_reader.path)
+    assert isinstance(z.attrs["mapchete"], dict)
+    mp_metadata = z.attrs["mapchete"]
+    assert "pyramid" in mp_metadata
+    assert "driver" in mp_metadata
+
+
+def test_single_zarr_as_input(single_zarr_input_mapchete):
+    # use single zarr path as process input
+    # TODO create process fixture
+    list(single_zarr_input_mapchete.mp().compute())
+
+
+def test_single_zarr_mapchete_as_input(single_zarr_process_mapchete):
+    # use mapchete process with single zarr output as process input
+    # TODO create process fixture
+    list(single_zarr_process_mapchete.mp().compute())
+
+
+def test_read_as_dataarray():
+    # TODO: input.read() returns xarray.DataArray
+    raise NotImplementedError()
+
+
+def test_read_as_dataset():
+    # TODO: input.read(as_dataset=True) returns xarray.DataSet
+    # TODO: input.read_dataset() returns xarray.DataSet
+    raise NotImplementedError()

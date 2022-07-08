@@ -1,30 +1,33 @@
 import logging
-from mapchete.config import validate_values, snap_bounds
-from mapchete.errors import MapcheteConfigError
-from mapchete.formats import base
-from mapchete.io import path_exists, fs_from_path
-from mapchete.io.raster import create_mosaic, extract_from_array, bounds_to_ranges
-from mapchete.tile import BufferedTile
 import math
-import numpy as np
 import os
-from rasterio.transform import from_origin
 import tempfile
-from tilematrix import Bounds
-import xarray as xr
-import zarr
-from zarr.storage import FSStore
-from datetime import datetime
+
 import croniter
 import dask.array as da
-
-
-from mapchete_xarray._zarr import initialize_zarr
-
+import dateutil
+import numpy as np
+import xarray as xr
+import zarr
+from mapchete.config import snap_bounds, validate_values
+from mapchete.errors import MapcheteConfigError
+from mapchete.formats import base
+from mapchete.formats.tools import compare_metadata_params, dump_metadata, load_metadata
+from mapchete.io import fs_from_path, path_exists
+from mapchete.io.raster import bounds_to_ranges, create_mosaic, extract_from_array
+from mapchete.tile import BufferedTile
+from rasterio.transform import from_origin
+from tilematrix import Bounds
+from zarr.storage import FSStore
 
 logger = logging.getLogger(__name__)
 
-METADATA = {"driver_name": "xarray", "data_type": "raster", "mode": "w"}
+METADATA = {
+    "driver_name": "xarray",
+    "data_type": "raster",
+    "mode": "w",
+    "file_extensions": ["zarr"],
+}
 
 
 class OutputDataWriter:
@@ -133,6 +136,7 @@ class XarrayZarrOutputDataReader(base.SingleFileOutputReader):
                 consolidated=True,
                 chunks=None,
             )
+            # TODO: read mapchete metadata
         return self._ds
 
     def read(self, output_tile):
@@ -230,6 +234,15 @@ class XarrayZarrOutputDataWriter(
         # check if archive exists
         if path_exists(self.path):
             # todo: verify it is compatible with our output parameters / chunking
+            attrs = zarr.open(FSStore(f"{self.path}")).attrs
+            mapchete_params = attrs.get("mapchete")
+            if mapchete_params is None:
+                raise TypeError(
+                    f"zarr archive at {self.path} exists but does not hold mapchete metadata"
+                )
+            existing = load_metadata(mapchete_params)
+            current = load_metadata(self.output_params)
+            compare_metadata_params(existing, current)
             pass
         else:
             # if not, create an empty one
@@ -246,6 +259,7 @@ class XarrayZarrOutputDataWriter(
                 x_axis_name=self.x_axis_name,
                 y_axis_name=self.y_axis_name,
                 area_or_point=self.area_or_point,
+                output_metadata=dump_metadata(self.output_params),
             )
 
     def tiles_exist(self, process_tile=None, output_tile=None):
@@ -628,10 +642,13 @@ class XarrayTileDirectoryOutputDataWriter(
             raise MapcheteConfigError(
                 "process metatiling must be smaller than xarray output metatiling"
             )
+        in_raster = create_mosaic([(i[0], i[1].data) for i in input_data_tiles])
+        if in_raster.data.shape == (0,):
+            return self.empty(out_tile)
         return _copy_metadata(
             base_darr=input_data_tiles[0][1],
             new_data=extract_from_array(
-                in_raster=create_mosaic([(i[0], i[1].data) for i in input_data_tiles]),
+                in_raster=in_raster,
                 out_tile=out_tile,
             ),
         )
@@ -745,3 +762,96 @@ def _copy_metadata(base_darr=None, new_data=None):
         name=base_darr.name,
         attrs=base_darr.attrs,
     )
+
+
+def initialize_zarr(
+    path=None,
+    bounds=None,
+    shape=None,
+    crs=None,
+    time=None,
+    fill_value=None,
+    chunksize=256,
+    count=None,
+    dtype="uint8",
+    x_axis_name="X",
+    y_axis_name="Y",
+    area_or_point="Area",
+    output_metadata=None,
+):
+
+    if time:
+        start_time = (
+            dateutil.parser.parse(time["start"])
+            if isinstance(time["start"], str)
+            else time["start"]
+        )
+
+        end_time = (
+            dateutil.parser.parse(time["end"])
+            if isinstance(time["end"], str)
+            else time["end"]
+        )
+
+        coord_time = [
+            t
+            for t in croniter.croniter_range(
+                start_time,
+                end_time,
+                time["pattern"],
+            )
+        ]
+
+        output_shape = (len(coord_time), *shape)
+        output_chunks = (time["chunksize"], chunksize, chunksize)
+    else:
+        output_shape = shape
+        output_chunks = (chunksize, chunksize)
+
+    height, width = shape
+    bounds = Bounds(*bounds)
+    pixel_x_size = (bounds.right - bounds.left) / width
+    pixel_y_size = (bounds.top - bounds.bottom) / -height
+
+    coord_x = [bounds.left + pixel_x_size / 2 + i * pixel_x_size for i in range(width)]
+    coord_y = [bounds.top + pixel_y_size / 2 + i * pixel_y_size for i in range(height)]
+
+    coords = {
+        x_axis_name: ([x_axis_name], coord_x),
+        y_axis_name: ([y_axis_name], coord_y),
+    }
+
+    axis_names = (
+        ["time", y_axis_name, x_axis_name] if time else [y_axis_name, x_axis_name]
+    )
+
+    if time:
+        coords["time"] = coord_time
+
+    ds = xr.Dataset(coords=coords)
+
+    ds.to_zarr(
+        FSStore(path),
+        compute=False,
+        encoding={var: {"_FillValue": fill_value} for var in ds.data_vars},
+        safe_chunks=True,
+    )
+
+    for i in range(1, count + 1):
+        store = FSStore(f"{path}/Band{i}")
+        zarr.creation.create(
+            shape=output_shape,
+            chunks=output_chunks,
+            dtype=dtype,
+            store=store,
+        )
+
+        attrs = zarr.open(store).attrs
+        attrs["_ARRAY_DIMENSIONS"] = axis_names
+        attrs["_CRS"] = {"wkt": crs.wkt}
+        attrs["AREA_OR_POINT"] = area_or_point
+
+    # add global metadata
+    if output_metadata:
+        zarr.open(FSStore(f"{path}")).attrs.update(mapchete=output_metadata)
+    zarr.consolidate_metadata(path)

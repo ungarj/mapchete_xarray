@@ -1,5 +1,5 @@
 dask
-mapchete[s3]>=2021.11.0
+mapchete[s3]>=2022.6.1
 netCDF4
 xarray
 zarr

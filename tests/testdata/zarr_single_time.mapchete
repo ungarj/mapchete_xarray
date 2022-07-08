@@ -21,3 +21,4 @@ output:
 pyramid:
     grid: geodetic
     metatiling: 1
+process_bounds: [-180, 45, -135, 90]

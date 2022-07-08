@@ -1,0 +1,13 @@
+process: read_zarr.py
+zoom_levels: 5
+input:
+    zarr: single_example.mapchete
+output:
+    format: xarray
+    path: temp
+    dtype: uint16
+    bands: 3
+    storage: zarr
+pyramid:
+    grid: geodetic
+    metatiling: 1

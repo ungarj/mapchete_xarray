@@ -1,13 +1,12 @@
-import mapchete
-from mapchete.io import fs_from_path
 import os
-import pytest
-from tempfile import TemporaryDirectory
 import uuid
+from tempfile import TemporaryDirectory
+
+import mapchete
+import pytest
 import yaml
-
+from mapchete.io import fs_from_path
 from mapchete.testing import ProcessFixture
-
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(SCRIPT_DIR, "testdata")
@@ -115,5 +114,40 @@ def convert_to_xarray_mapchete():
 
 
 @pytest.fixture
+def single_example_mapchete():
+    with TemporaryDirectory() as tempdir:
+        with ProcessFixture(
+            os.path.join(TESTDATA_DIR, "single_example.mapchete"),
+            output_tempdir=tempdir,
+        ) as example:
+            yield example
+
+
+@pytest.fixture
+def single_zarr_input_mapchete():
+    with TemporaryDirectory() as tempdir:
+        with ProcessFixture(
+            os.path.join(TESTDATA_DIR, "single_zarr_input.mapchete"),
+            output_tempdir=tempdir,
+        ) as example:
+            yield example
+
+
+@pytest.fixture
+def single_zarr_process_mapchete():
+    with TemporaryDirectory() as tempdir:
+        with ProcessFixture(
+            os.path.join(TESTDATA_DIR, "single_zarr_process.mapchete"),
+            output_tempdir=tempdir,
+        ) as example:
+            yield example
+
+
+@pytest.fixture
 def rgb_tif():
     return os.path.join(TESTDATA_DIR, "rgb.tif")
+
+
+@pytest.fixture
+def example_zarr():
+    return os.path.join(TESTDATA_DIR, "example.zarr")

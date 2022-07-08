@@ -1,4 +1,5 @@
 import json
+
 import xarray as xr
 
 
@@ -19,6 +20,8 @@ def execute(
         if raster.is_empty():
             return "empty"
         data = raster.read()
+        if data.mask.all():
+            return "empty"
 
     if "indexes" in mp.input:  # pragma: no cover
         if index_band is None:

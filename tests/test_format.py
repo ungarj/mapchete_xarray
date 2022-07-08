@@ -1,17 +1,21 @@
+import json
+
+import dateutil
 import mapchete
-from mapchete.errors import MapcheteConfigError
-from mapchete.formats import available_output_formats
 import numpy as np
 import pytest
 import xarray as xr
-import dateutil
-import json
-
+from mapchete.errors import MapcheteConfigError
+from mapchete.formats.tools import available_output_formats, driver_from_extension
 from mapchete.testing import get_process_mp
 
 
 def test_format_available():
     assert "xarray" in available_output_formats()
+
+
+def test_format_extension_findable():
+    assert driver_from_extension("zarr") == "xarray"
 
 
 def test_write_read_output(example_config):
@@ -330,8 +334,12 @@ def test_input_data(written_output):
         metatiling=2,
     )
     xarr = mp.open("xarray")
-    assert xarr.is_empty()
-    assert isinstance(xarr.read(), xr.DataArray)
+    # commented out because mapchete 2022.6.0 handles TileDirectories differently
+    # assert xarr.is_empty()
+    arr = xarr.read()
+    # instead we read the array and make sure it is empty
+    assert arr.shape == (0,)
+    assert isinstance(arr, xr.DataArray)
 
 
 def test_single_zarr(zarr_single_mapchete):
