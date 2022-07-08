@@ -1,6 +1,5 @@
 dask
 mapchete[s3]>=2022.6.1
-netCDF4
 xarray
 zarr
 python-dateutil

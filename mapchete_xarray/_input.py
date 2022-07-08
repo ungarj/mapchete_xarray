@@ -1,3 +1,7 @@
+"""
+Contains all classes required to use the xarray driver as mapchete input.
+"""
+
 import xarray as xr
 import zarr
 from mapchete.config import snap_bounds

@@ -1,0 +1,18 @@
+process: read_zarr.py
+zoom_levels: 5
+input:
+    zarr: example.zarr
+output:
+    format: xarray
+    path: zarr_as_input.zarr
+    dtype: uint16
+    bands: 3
+    storage: zarr
+    time:
+        start: 2022-03-01
+        end: 2022-03-31
+        pattern: 0 0 * * *
+        chunksize: 10
+pyramid:
+    grid: geodetic
+    metatiling: 1
