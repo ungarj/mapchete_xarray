@@ -38,6 +38,8 @@ class OutputDataReader(base.SingleFileOutputReader):
 
     def __init__(self, output_params, *args, **kwargs):
         super().__init__(output_params)
+        if output_params.get("pixelbuffer", 0) > 0:
+            raise ValueError("a pixelbuffer larger than 0 is not allowed with zarr")
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)
         self.storage = "zarr"
@@ -271,12 +273,13 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             coords["time"] = data.time.values
             axis_names = ["time"] + axis_names
 
-        def write_zarr(_ds, _region):
-            _ds.to_zarr(
+        def write_zarr(ds, region):
+            ds.to_zarr(
                 FSStore(self.path),
+                mode="r+",
                 compute=True,
                 safe_chunks=True,
-                region=_region,
+                region=region,
             )
 
         ds = self.output_cleaned(data)
@@ -328,6 +331,10 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         xarray
         """
         if isinstance(process_data, xr.Dataset):
+            # TODO: deleting the attributes is a hackaround attempt
+            process_data.attrs.pop("mapchete", None)
+            for darr in process_data.values():
+                darr.attrs = {}
             return process_data
         elif isinstance(process_data, xr.DataArray):
             return self._dataarray_to_dataset(process_data)
