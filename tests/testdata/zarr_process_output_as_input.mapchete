@@ -1,7 +1,7 @@
 process: read_zarr.py
 zoom_levels: 5
 input:
-    zarr: output_4d.mapchete
+    zarr: s2_stack.mapchete
 output:
     format: xarray
     path: zarr_process_output_as_input.zarr

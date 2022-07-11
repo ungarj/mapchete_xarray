@@ -6,18 +6,12 @@ output:
     path: output_4d.zarr
     dtype: uint16
     bands: 3
-    storage: zarr
     chunksize: 256
     time:
         start: 2022-03-01
         end: 2022-03-31
         pattern: 0 0 * * *
         chunksize: 10
-        # steps:
-        #   - 2022-03-01
-        #   - 2022-03-03
-        #   - 2022-03-04
-        #   - 2022-03-07
 pyramid:
     grid: geodetic
     metatiling: 1

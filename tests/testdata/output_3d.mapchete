@@ -6,7 +6,6 @@ output:
     path: output_3d.zarr
     dtype: uint16
     bands: 3
-    storage: zarr
 pyramid:
     grid: geodetic
     metatiling: 1

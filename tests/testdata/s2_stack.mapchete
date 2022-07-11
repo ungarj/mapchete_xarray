@@ -1,0 +1,34 @@
+process: generate_s2_stack.py
+zoom_levels: 5
+input:
+    s2_products:
+        S2A_MSIL2A_20220601T095041_N0400_R079_T33UWP: s2_samples/S2A_MSIL2A_20220601T095041_N0400_R079_T33UWP_20220601T142611_B04B03B02_480m.tif
+        S2A_MSIL2A_20220604T100031_N0400_R122_T33UWP: s2_samples/S2A_MSIL2A_20220604T100031_N0400_R122_T33UWP_20220604T141210_B04B03B02_480m.tif
+        S2B_MSIL2A_20220606T095029_N0400_R079_T33UWP: s2_samples/S2B_MSIL2A_20220606T095029_N0400_R079_T33UWP_20220606T115947_B04B03B02_480m.tif
+        S2B_MSIL2A_20220609T100029_N0400_R122_T33UWP: s2_samples/S2B_MSIL2A_20220609T100029_N0400_R122_T33UWP_20220614T114726_B04B03B02_480m.tif
+        S2A_MSIL2A_20220611T095041_N0400_R079_T33UWP: s2_samples/S2A_MSIL2A_20220611T095041_N0400_R079_T33UWP_20220611T143810_B04B03B02_480m.tif
+output:
+    format: xarray
+    path: s2_stack.zarr
+    dtype: uint16
+    bands: 3
+    chunksize: 256
+    time:
+        start: 2022-06-01
+        end: 2022-06-11
+        steps:
+          - 2022-06-01
+          - 2022-06-04
+          - 2022-06-06
+          - 2022-06-09
+          - 2022-06-11
+pyramid:
+    grid: geodetic
+    metatiling: 1
+process_bounds: [15.0064, 47.7604, 16.4863, 48.7485]
+timestamps:
+    - 2022-06-01
+    - 2022-06-04
+    - 2022-06-06
+    - 2022-06-09
+    - 2022-06-11

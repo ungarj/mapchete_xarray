@@ -7,22 +7,22 @@
                     "chunksize": 256,
                     "delimiters": {
                         "bounds": [
-                            -180.0,
-                            45.0,
-                            -135.0,
-                            90.0
+                            15.0064,
+                            47.7604,
+                            16.4863,
+                            48.7485
                         ],
                         "effective_bounds": [
-                            -180.0,
+                            11.25,
                             45.0,
-                            -135.0,
-                            90.0
+                            16.875,
+                            50.625
                         ],
                         "process_bounds": [
-                            -180.0,
-                            45.0,
-                            -135.0,
-                            90.0
+                            15.0064,
+                            47.7604,
+                            16.4863,
+                            48.7485
                         ],
                         "zoom": [
                             5
@@ -31,12 +31,16 @@
                     "dtype": "uint16",
                     "format": "xarray",
                     "mode": "continue",
-                    "storage": "zarr",
                     "time": {
-                        "chunksize": 10,
-                        "end": "2022-03-31",
-                        "pattern": "0 0 * * *",
-                        "start": "2022-03-01"
+                        "end": "2022-06-11",
+                        "start": "2022-06-01",
+                        "steps": [
+                            "2022-06-01",
+                            "2022-06-04",
+                            "2022-06-06",
+                            "2022-06-09",
+                            "2022-06-11"
+                        ]
                     }
                 },
                 "pyramid": {
@@ -68,7 +72,7 @@
         },
         "Band1/.zarray": {
             "chunks": [
-                10,
+                8,
                 256,
                 256
             ],
@@ -84,9 +88,9 @@
             "filters": null,
             "order": "C",
             "shape": [
-                31,
-                2048,
-                2048
+                5,
+                256,
+                256
             ],
             "zarr_format": 2
         },
@@ -103,7 +107,7 @@
         },
         "Band2/.zarray": {
             "chunks": [
-                10,
+                8,
                 256,
                 256
             ],
@@ -119,9 +123,9 @@
             "filters": null,
             "order": "C",
             "shape": [
-                31,
-                2048,
-                2048
+                5,
+                256,
+                256
             ],
             "zarr_format": 2
         },
@@ -138,7 +142,7 @@
         },
         "Band3/.zarray": {
             "chunks": [
-                10,
+                8,
                 256,
                 256
             ],
@@ -154,9 +158,9 @@
             "filters": null,
             "order": "C",
             "shape": [
-                31,
-                2048,
-                2048
+                5,
+                256,
+                256
             ],
             "zarr_format": 2
         },
@@ -173,7 +177,7 @@
         },
         "X/.zarray": {
             "chunks": [
-                2048
+                256
             ],
             "compressor": {
                 "blocksize": 0,
@@ -187,7 +191,7 @@
             "filters": null,
             "order": "C",
             "shape": [
-                2048
+                256
             ],
             "zarr_format": 2
         },
@@ -198,7 +202,7 @@
         },
         "Y/.zarray": {
             "chunks": [
-                2048
+                256
             ],
             "compressor": {
                 "blocksize": 0,
@@ -212,7 +216,7 @@
             "filters": null,
             "order": "C",
             "shape": [
-                2048
+                256
             ],
             "zarr_format": 2
         },
@@ -223,7 +227,7 @@
         },
         "time/.zarray": {
             "chunks": [
-                31
+                5
             ],
             "compressor": {
                 "blocksize": 0,
@@ -237,7 +241,7 @@
             "filters": null,
             "order": "C",
             "shape": [
-                31
+                5
             ],
             "zarr_format": 2
         },
@@ -246,7 +250,7 @@
                 "time"
             ],
             "calendar": "proleptic_gregorian",
-            "units": "days since 2022-03-01 00:00:00"
+            "units": "days since 2022-06-01 00:00:00"
         }
     },
     "zarr_consolidated_format": 1
