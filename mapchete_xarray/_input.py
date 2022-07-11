@@ -19,17 +19,17 @@ class InputData(base.InputData):
         """Initialize."""
         super().__init__(input_params, **kwargs)
         self.path = input_params["path"]
-        if not path_exists(self.path):
+        if not path_exists(self.path):  # pragma: no cover
             raise FileNotFoundError(f"path {self.path} does not exist")
         archive = zarr.open(FSStore(f"{self.path}"))
         mapchete_params = archive.attrs.get("mapchete")
-        if mapchete_params is None:
+        if mapchete_params is None:  # pragma: no cover
             raise TypeError(
                 f"zarr archive at {self.path} exists but does not hold mapchete metadata"
             )
         metadata = load_metadata(mapchete_params)
         self.zarr_pyramid = metadata["pyramid"]
-        if self.zarr_pyramid.crs != self.pyramid.crs:
+        if self.zarr_pyramid.crs != self.pyramid.crs:  # pragma: no cover
             raise NotImplementedError(
                 f"single zarr output ({self.zarr_pyramid.crs}) cannot be reprojected to different CRS ({self.pyramid.crs})"
             )
@@ -87,7 +87,7 @@ class InputData(base.InputData):
         )
 
 
-class InputTile(base.InputTile):  # pragma: no cover
+class InputTile(base.InputTile):
     """
     Target Tile representation of input data.
 
@@ -141,18 +141,6 @@ class InputTile(base.InputTile):  # pragma: no cover
             indexes=indexes, start_time=start_time, end_time=end_time, **kwargs
         )
 
-    def read_dataarray(self, indexes=None, start_time=None, end_time=None, **kwargs):
-        """
-        Read reprojected & resampled input data.
-
-        Returns
-        -------
-        data : array or list
-            NumPy array for raster data or feature list for vector data
-        """
-        dataset = self.read_dataset(start_time=start_time, end_time=end_time, **kwargs)
-        return xr.concat(dataset.data_vars.values(), dim="bands")
-
     def read_dataset(self, indexes=None, start_time=None, end_time=None, **kwargs):
         """
         Read reprojected & resampled input data.
@@ -162,7 +150,7 @@ class InputTile(base.InputTile):  # pragma: no cover
         data : array or list
             NumPy array for raster data or feature list for vector data
         """
-        if indexes is not None:
+        if indexes is not None:  # pragma: no cover
             raise NotImplementedError("selecting bands is not yet implemented.")
         bounds = self.tile.bounds
         selector = {
@@ -177,7 +165,7 @@ class InputTile(base.InputTile):  # pragma: no cover
 
         return self.ds.sel(**selector)
 
-    def is_empty(self):
+    def is_empty(self):  # pragma: no cover
         """
         Check if there is data within this tile.
 
