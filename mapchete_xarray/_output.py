@@ -6,18 +6,15 @@ import logging
 import math
 
 import croniter
-import dask.array as da
 import dateutil
 import numpy as np
 import xarray as xr
 import zarr
 from mapchete.config import snap_bounds, validate_values
-from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
 from mapchete.formats.tools import compare_metadata_params, dump_metadata, load_metadata
 from mapchete.io import fs_from_path, path_exists
 from mapchete.io.raster import bounds_to_ranges, create_mosaic, extract_from_array
-from mapchete.tile import BufferedTile
 from rasterio.transform import from_origin
 from tilematrix import Bounds
 from zarr.storage import FSStore
@@ -92,6 +89,13 @@ class OutputDataReader(base.SingleFileOutputReader):
             )
         return self._ds
 
+    @property
+    def axis_names(self):
+        if self.time:
+            return ("time", self.y_axis_name, self.x_axis_name)
+        else:
+            return (self.y_axis_name, self.x_axis_name)
+
     def read(self, output_tile):
         """
         Read existing process output.
@@ -136,18 +140,54 @@ class OutputDataReader(base.SingleFileOutputReader):
         """
         return InputTile(tile, process)
 
+    def extract_subset(self, input_data_tiles=None, out_tile=None):
+        # for mapchete.io.raster.create_mosaic() the input arrays must have
+        # the bands as first dimension, the rest will get stitched together
+        def _transpose_darrays(input_data_tiles):
+            for tile, ds in input_data_tiles:
+                # convert Dataset to DataArray
+                darr = ds.to_array(dim="band")
+                if self.time and darr.dims[0] != "band":
+                    yield (
+                        tile,
+                        darr.transpose(
+                            "band", "time", self.y_axis_name, self.x_axis_name
+                        ).data,
+                    )
+                else:
+                    yield tile, darr.data
+
+        mosaic = create_mosaic(_transpose_darrays(input_data_tiles))
+        arr = extract_from_array(
+            in_raster=mosaic,
+            in_affine=mosaic.affine,
+            out_tile=out_tile,
+        )
+        coords = {"time": input_data_tiles[0][1].time.values}
+        return xr.Dataset(
+            data_vars={
+                f"Band{i}": (self.axis_names, band)
+                for i, band in zip(range(1, self.count + 1), arr)
+            },
+            coords=coords,
+        )
+
     def _bounds_to_ranges(self, bounds):
         return bounds_to_ranges(
             out_bounds=bounds, in_affine=self.affine, in_shape=self.shape
         )
 
     def _timestamp_regions(self, timestamps):
-
         slice_idxs = list()
         slice_timestamps = list()
 
         for t in sorted(timestamps):
-            idx = list(self.ds.time.values).index(t)
+            try:
+                idx = list(self.ds.time.values).index(t)
+            except ValueError:
+                raise ValueError(
+                    f"time slice {t} not available to insert: {self.ds.time.values}"
+                )
 
             if slice_idxs and idx > slice_idxs[-1] + 1:
                 yield slice_timestamps, slice(slice_idxs[0], slice_idxs[-1] + 1)
@@ -266,11 +306,9 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             self.x_axis_name: slice(mincol, maxcol),
             self.y_axis_name: slice(minrow, maxrow),
         }
-        axis_names = [self.y_axis_name, self.x_axis_name]
 
         if self.time:
             coords["time"] = data.time.values
-            axis_names = ["time"] + axis_names
 
         def write_zarr(ds, region):
             ds.to_zarr(
@@ -283,7 +321,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
 
         ds = self.output_cleaned(data)
         if self.time:
-            for timestamps, time_region in self._timestamp_regions(data.time.values):
+            for timestamps, time_region in self._timestamp_regions(ds.time.values):
                 region["time"] = time_region
                 write_zarr(ds.sel(time=timestamps), region)
         else:
@@ -291,13 +329,16 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
 
     def _dataarray_to_dataset(self, darr):
         coords = {}
-        axis_names = [self.y_axis_name, self.x_axis_name]
         if self.time:
-            coords["time"] = darr.time.values
-            axis_names = ["time"] + axis_names
+            coords["time"] = np.array(darr.time.values, dtype=np.datetime64)
+            # make sure the band axis is first
+            if darr.dims[0] != "band":
+                darr = darr.transpose(
+                    "band", "time", self.y_axis_name, self.x_axis_name
+                )
         return xr.Dataset(
             data_vars={
-                f"Band{i}": (axis_names, band.values)
+                f"Band{i}": (self.axis_names, band.values)
                 for i, band in zip(range(1, self.count + 1), darr)
             },
             coords=coords,
@@ -416,6 +457,22 @@ def initialize_zarr(
     area_or_point="Area",
     output_metadata=None,
 ):
+    if path_exists(path):
+        raise IOError(f"cannot initialize zarr storage as path already exists: {path}")
+
+    height, width = shape
+    bounds = Bounds(*bounds)
+    pixel_x_size = (bounds.right - bounds.left) / width
+    pixel_y_size = (bounds.top - bounds.bottom) / -height
+
+    coord_x = [bounds.left + pixel_x_size / 2 + i * pixel_x_size for i in range(width)]
+    coord_y = [bounds.top + pixel_y_size / 2 + i * pixel_y_size for i in range(height)]
+
+    axis_names = [y_axis_name, x_axis_name]
+    coords = {
+        x_axis_name: ([x_axis_name], coord_x),
+        y_axis_name: ([y_axis_name], coord_y),
+    }
 
     if time:
         start_time = (
@@ -430,65 +487,69 @@ def initialize_zarr(
             else time["end"]
         )
 
-        coord_time = [
-            t
-            for t in croniter.croniter_range(
-                start_time,
-                end_time,
-                time["pattern"],
+        if "pattern" in time:
+            coord_time = [
+                t
+                for t in croniter.croniter_range(
+                    start_time,
+                    end_time,
+                    time["pattern"],
+                )
+            ]
+        elif "steps" in time:
+            # convert timestamp steps into np.datetime64
+            coord_time = np.array(
+                [
+                    dateutil.parser.parse(t) if isinstance(t, str) else t
+                    for t in time["steps"]
+                ],
+                dtype=np.datetime64,
             )
-        ]
+        else:
+            raise ValueError(
+                "timestamps have to be provied either as list in 'steps' or a pattern in 'pattern'"
+            )
+        coords["time"] = coord_time
 
         output_shape = (len(coord_time), *shape)
-        output_chunks = (time["chunksize"], chunksize, chunksize)
+        output_chunks = (time.get("chunksize", 8), chunksize, chunksize)
+        axis_names = ["time"] + axis_names
+
     else:
         output_shape = shape
         output_chunks = (chunksize, chunksize)
 
-    height, width = shape
-    bounds = Bounds(*bounds)
-    pixel_x_size = (bounds.right - bounds.left) / width
-    pixel_y_size = (bounds.top - bounds.bottom) / -height
-
-    coord_x = [bounds.left + pixel_x_size / 2 + i * pixel_x_size for i in range(width)]
-    coord_y = [bounds.top + pixel_y_size / 2 + i * pixel_y_size for i in range(height)]
-
-    coords = {
-        x_axis_name: ([x_axis_name], coord_x),
-        y_axis_name: ([y_axis_name], coord_y),
-    }
-
-    axis_names = (
-        ["time", y_axis_name, x_axis_name] if time else [y_axis_name, x_axis_name]
-    )
-
-    if time:
-        coords["time"] = coord_time
-
     ds = xr.Dataset(coords=coords)
 
-    ds.to_zarr(
-        FSStore(path),
-        compute=False,
-        encoding={var: {"_FillValue": fill_value} for var in ds.data_vars},
-        safe_chunks=True,
-    )
-
-    for i in range(1, count + 1):
-        store = FSStore(f"{path}/Band{i}")
-        zarr.creation.create(
-            shape=output_shape,
-            chunks=output_chunks,
-            dtype=dtype,
-            store=store,
+    try:
+        ds.to_zarr(
+            FSStore(path),
+            compute=False,
+            encoding={var: {"_FillValue": fill_value} for var in ds.data_vars},
+            safe_chunks=True,
         )
 
-        attrs = zarr.open(store).attrs
-        attrs["_ARRAY_DIMENSIONS"] = axis_names
-        attrs["_CRS"] = {"wkt": crs.wkt}
-        attrs["AREA_OR_POINT"] = area_or_point
+        for i in range(1, count + 1):
+            store = FSStore(f"{path}/Band{i}")
+            zarr.creation.create(
+                shape=output_shape,
+                chunks=output_chunks,
+                dtype=dtype,
+                store=store,
+            )
 
-    # add global metadata
-    if output_metadata:
-        zarr.open(FSStore(f"{path}")).attrs.update(mapchete=output_metadata)
-    zarr.consolidate_metadata(path)
+            attrs = zarr.open(store).attrs
+            attrs["_ARRAY_DIMENSIONS"] = axis_names
+            attrs["_CRS"] = {"wkt": crs.wkt}
+            attrs["AREA_OR_POINT"] = area_or_point
+
+        # add global metadata
+        if output_metadata:
+            zarr.open(FSStore(f"{path}")).attrs.update(mapchete=output_metadata)
+        zarr.consolidate_metadata(path)
+    except Exception:
+        try:
+            fs_from_path(path).rm(path, recursive=True)
+        except FileNotFoundError:
+            pass
+        raise

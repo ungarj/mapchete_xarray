@@ -11,8 +11,12 @@ output:
     time:
         start: 2022-03-01
         end: 2022-03-31
-        pattern: 0 0 * * *
-        chunksize: 10
+        steps:
+          - 2022-06-01
+          - 2022-06-04
+          - 2022-06-06
+          - 2022-06-09
+          - 2022-06-11
 pyramid:
     grid: geodetic
     metatiling: 1
