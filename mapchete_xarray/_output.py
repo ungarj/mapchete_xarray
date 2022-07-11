@@ -11,6 +11,7 @@ import numpy as np
 import xarray as xr
 import zarr
 from mapchete.config import snap_bounds, validate_values
+from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
 from mapchete.formats.tools import compare_metadata_params, dump_metadata, load_metadata
 from mapchete.io import fs_from_path, path_exists
@@ -37,14 +38,16 @@ class OutputDataReader(base.SingleFileOutputReader):
     def __init__(self, output_params, *args, **kwargs):
         super().__init__(output_params)
         if output_params.get("pixelbuffer", 0) > 0:
-            raise ValueError("a pixelbuffer larger than 0 is not allowed with zarr")
+            raise MapcheteConfigError(
+                "a pixelbuffer larger than 0 is not allowed with zarr"
+            )
         self.output_params = output_params
         self.nodata = output_params.get("nodata", 0)
         self.storage = "zarr"
         self.file_extension = ".zarr"
         self.path = output_params["path"]
         if not self.path.endswith(self.file_extension):
-            raise ValueError("output path must end with .zarr")
+            raise MapcheteConfigError("output path must end with .zarr")
         self.fs = fs_from_path(self.path)
         self.output_params = output_params
         self.zoom = output_params["delimiters"]["zoom"][0]
@@ -147,7 +150,7 @@ class OutputDataReader(base.SingleFileOutputReader):
             for tile, ds in input_data_tiles:
                 # convert Dataset to DataArray
                 darr = ds.to_array(dim="band")
-                if self.time and darr.dims[0] != "band":
+                if self.time and darr.dims[0] != "band":  # pragma: no cover
                     yield (
                         tile,
                         darr.transpose(
@@ -184,7 +187,7 @@ class OutputDataReader(base.SingleFileOutputReader):
         for t in sorted(timestamps):
             try:
                 idx = list(self.ds.time.values).index(t)
-            except ValueError:
+            except ValueError:  # pragma: no cover
                 raise ValueError(
                     f"time slice {t} not available to insert: {self.ds.time.values}"
                 )
@@ -225,7 +228,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             # verify it is compatible with our output parameters / chunking
             archive = zarr.open(FSStore(f"{self.path}"))
             mapchete_params = archive.attrs.get("mapchete")
-            if mapchete_params is None:
+            if mapchete_params is None:  # pragma: no cover
                 raise TypeError(
                     f"zarr archive at {self.path} exists but does not hold mapchete metadata"
                 )
@@ -285,7 +288,13 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         is_valid : bool
         """
         if len(config["delimiters"]["zoom"]) > 1:
-            raise ValueError("single zarr output can only be used with a single zoom")
+            raise ValueError("zarr output can only be used with a single zoom")
+        if "time" in config:
+            if "pattern" not in config["time"] and "steps" not in config["time"]:
+                raise ValueError(
+                    "when using a time axis, please specify the time stamps either through "
+                    "'pattern' or 'steps'"
+                )
         return validate_values(config, [("path", str)])
 
     def write(self, process_tile, data):
@@ -332,7 +341,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         if self.time:
             coords["time"] = np.array(darr.time.values, dtype=np.datetime64)
             # make sure the band axis is first
-            if darr.dims[0] != "band":
+            if darr.dims[0] != "band":  # pragma: no cover
                 darr = darr.transpose(
                     "band", "time", self.y_axis_name, self.x_axis_name
                 )
@@ -389,7 +398,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         elif isinstance(process_data, xr.DataArray):
             return self._dataarray_to_dataset(process_data)
 
-        else:
+        else:  # pragma: no cover
             raise TypeError(
                 f"xarray driver only accepts xarray.DataArray or xarray.Dataset as output, not {type(process_data)}"
             )
@@ -400,7 +409,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             if self._ds is not None:
                 logger.debug("close dataset")
                 self._ds.close()
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             logger.debug(e)
 
 
@@ -431,7 +440,7 @@ class InputTile(base.InputTile):
         """
         return self.process.get_raw_output(self.tile)
 
-    def is_empty(self):
+    def is_empty(self):  # pragma: no cover
         """
         Check if there is data within this tile.
 
@@ -457,7 +466,7 @@ def initialize_zarr(
     area_or_point="Area",
     output_metadata=None,
 ):
-    if path_exists(path):
+    if path_exists(path):  # pragma: no cover
         raise IOError(f"cannot initialize zarr storage as path already exists: {path}")
 
     height, width = shape
@@ -505,7 +514,7 @@ def initialize_zarr(
                 ],
                 dtype=np.datetime64,
             )
-        else:
+        else:  # pragma: no cover
             raise ValueError(
                 "timestamps have to be provied either as list in 'steps' or a pattern in 'pattern'"
             )
@@ -519,9 +528,9 @@ def initialize_zarr(
         output_shape = shape
         output_chunks = (chunksize, chunksize)
 
-    ds = xr.Dataset(coords=coords)
-
     try:
+        # write zarr
+        ds = xr.Dataset(coords=coords)
         ds.to_zarr(
             FSStore(path),
             compute=False,
@@ -529,6 +538,7 @@ def initialize_zarr(
             safe_chunks=True,
         )
 
+        # add GDAL metadata for each band
         for i in range(1, count + 1):
             store = FSStore(f"{path}/Band{i}")
             zarr.creation.create(
@@ -547,7 +557,9 @@ def initialize_zarr(
         if output_metadata:
             zarr.open(FSStore(f"{path}")).attrs.update(mapchete=output_metadata)
         zarr.consolidate_metadata(path)
-    except Exception:
+
+    except Exception:  # pragma: no cover
+        # remove leftovers if something failed during initialization
         try:
             fs_from_path(path).rm(path, recursive=True)
         except FileNotFoundError:

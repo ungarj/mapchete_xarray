@@ -1,5 +1,9 @@
 import numpy as np
+import pytest
 import xarray as xr
+
+import mapchete
+from mapchete.errors import MapcheteConfigError
 from mapchete.formats.tools import available_output_formats, driver_from_extension
 
 
@@ -100,6 +104,34 @@ def test_zarr_as_input(zarr_as_input_mapchete):
 def test_zarr_process_output_as_input(zarr_process_output_as_input_mapchete):
     # NOTE: this only reads an empty output, thus maybe not testing reading real data
     list(zarr_process_output_as_input_mapchete.mp().compute(concurrency=None))
+
+
+def test_output_pixelbuffer_error(output_3d_mapchete):
+    config = output_3d_mapchete.dict
+    config["output"].update(pixelbuffer=5)
+    with pytest.raises(MapcheteConfigError):
+        mapchete.open(config)
+
+
+def test_output_file_extension_error(output_3d_mapchete):
+    config = output_3d_mapchete.dict
+    config["output"].update(path="foo")
+    with pytest.raises(MapcheteConfigError):
+        mapchete.open(config)
+
+
+def test_zoom_levels_error(output_3d_mapchete):
+    config = output_3d_mapchete.dict
+    config.update(zoom_levels=dict(min=0, max=5))
+    with pytest.raises(MapcheteConfigError):
+        mapchete.open(config)
+
+
+def test_timestamps_error(output_4d_mapchete):
+    config = output_4d_mapchete.dict
+    config["output"]["time"].pop("pattern")
+    with pytest.raises(MapcheteConfigError):
+        mapchete.open(config)
 
 
 # TODO: test if global grid creation on high zoom level adds performance issues
