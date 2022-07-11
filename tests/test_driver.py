@@ -1,8 +1,7 @@
+import mapchete
 import numpy as np
 import pytest
 import xarray as xr
-
-import mapchete
 from mapchete.errors import MapcheteConfigError
 from mapchete.formats.tools import available_output_formats, driver_from_extension
 

@@ -1,5 +1,6 @@
-import dateutil
 import logging
+
+import dateutil
 import numpy as np
 import xarray as xr
 
