@@ -98,4 +98,8 @@ def test_zarr_as_input(zarr_as_input_mapchete):
 
 
 def test_zarr_process_output_as_input(zarr_process_output_as_input_mapchete):
+    # NOTE: this only reads an empty output, thus maybe not testing reading real data
     list(zarr_process_output_as_input_mapchete.mp().compute(concurrency=None))
+
+
+# TODO: test if global grid creation on high zoom level adds performance issues

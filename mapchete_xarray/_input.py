@@ -137,7 +137,9 @@ class InputTile(base.InputTile):  # pragma: no cover
         data : array or list
             NumPy array for raster data or feature list for vector data
         """
-        return self.read_dataset(start_time=start_time, end_time=end_time, **kwargs)
+        return self.read_dataset(
+            indexes=indexes, start_time=start_time, end_time=end_time, **kwargs
+        )
 
     def read_dataarray(self, indexes=None, start_time=None, end_time=None, **kwargs):
         """
@@ -160,6 +162,8 @@ class InputTile(base.InputTile):  # pragma: no cover
         data : array or list
             NumPy array for raster data or feature list for vector data
         """
+        if indexes is not None:
+            raise NotImplementedError("selecting bands is not yet implemented.")
         bounds = self.tile.bounds
         selector = {
             self.x_axis_name: slice(bounds.left, bounds.right),

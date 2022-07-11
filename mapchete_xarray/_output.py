@@ -35,6 +35,7 @@ METADATA = {
 class OutputDataReader(base.SingleFileOutputReader):
 
     METADATA = METADATA
+    _ds = None
 
     def __init__(self, output_params, *args, **kwargs):
         super().__init__(output_params)
@@ -79,8 +80,6 @@ class OutputDataReader(base.SingleFileOutputReader):
         self.time = output_params.get("time", {})
         self.start_time = self.time.get("start")
         self.end_time = self.time.get("end")
-
-        self._ds = None
 
     @property
     def ds(self):
@@ -181,7 +180,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
     def __init__(self, output_params, *args, **kwargs):
         super().__init__(output_params, *args, **kwargs)
 
-    def prepare(self, process_area=None, **kwargs):
+    def prepare(self, **kwargs):
         if path_exists(self.path):
             # verify it is compatible with our output parameters / chunking
             archive = zarr.open(FSStore(f"{self.path}"))
@@ -316,7 +315,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         -------
         True or False
         """
-        return isinstance(process_data, (xr.Dataset, xr.DataArray, np.ndarray))
+        return isinstance(process_data, (xr.Dataset, xr.DataArray))
 
     def output_cleaned(self, process_data):
         """
@@ -331,13 +330,24 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         xarray
         """
         if isinstance(process_data, xr.Dataset):
-            # TODO: deleting the attributes is a hackaround attempt
+            # we have to clean all of the Dataset metadata, otherwise there
+            # will be errors when updating an existing Dataset
+
+            # delete mapchete metadata from root
             process_data.attrs.pop("mapchete", None)
+            # delete GDAL specific metadata from DataArrays
             for darr in process_data.values():
-                darr.attrs = {}
+                for attr in ["_FillValue", "AREA_OR_POINT", "_CRS"]:
+                    darr.attrs.pop(attr, None)
+            # delete GDAL specific metadata from coordinates
+            for coord in process_data.coords:
+                for attr in ["_FillValue", "AREA_OR_POINT", "_CRS"]:
+                    process_data[coord].attrs.pop(attr, None)
             return process_data
+
         elif isinstance(process_data, xr.DataArray):
             return self._dataarray_to_dataset(process_data)
+
         else:
             raise TypeError(
                 f"xarray driver only accepts xarray.DataArray or xarray.Dataset as output, not {type(process_data)}"
