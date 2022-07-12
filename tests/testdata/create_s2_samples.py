@@ -9,11 +9,11 @@ $ mapchete satellite cat-results -b 16 48 17 49 2022-06-01 2022-06-30 vienna_202
 import math
 import os
 
-from affine import Affine
 import click
 import fiona
-from mapchete import Timer
 import rasterio
+from affine import Affine
+from mapchete import Timer
 from rasterio.vrt import WarpedVRT
 from tqdm import tqdm
 
