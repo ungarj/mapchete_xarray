@@ -23,9 +23,11 @@ When using a time axis, please note that it has to be initialized with the full 
 
 If you plan extending your Zarr over multiple process runs you can achieve this by always specifying the full time range in the output configuration and then simply write a couple of slices per process run. Please note that for every process run after initialization you will have to use the `--overwrite` flag, otherwise the process tile will be skipped.
 
---------
-Examples
---------
+-----
+Usage
+-----
+
+A process file can either return a `xarray.Dataset`, `xarray.DataArray` or a `numpy.ndarray` object. Please make sure though that when using a time axis, the timestamps of the slices have to be provided. In case of returning a `numpy.ndarray` this information is not available so this array has to match exactly to the output Zarr shape on the time and bands axes.
 
 3D output array
 ---------------

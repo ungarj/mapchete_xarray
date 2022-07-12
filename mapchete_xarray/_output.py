@@ -341,7 +341,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         if self.time:
             coords["time"] = np.array(darr.time.values, dtype=np.datetime64)
             # make sure the band axis is first
-            if darr.dims[0] != "band":  # pragma: no cover
+            if darr.dims[0] != "band":
                 darr = darr.transpose(
                     "band", "time", self.y_axis_name, self.x_axis_name
                 )
@@ -349,6 +349,31 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             data_vars={
                 f"Band{i}": (self.axis_names, band.values)
                 for i, band in zip(range(1, self.count + 1), darr)
+            },
+            coords=coords,
+        )
+
+    def _ndarray_to_dataset(self, ndarr):
+        coords = {}
+        if self.time:
+            coords["time"] = np.array(self.ds.time.values, dtype=np.datetime64)
+            slices, bands = ndarr.shape[:2]
+            if slices != len(self.ds.time.values):  # pragma: no cover
+                raise ValueError(
+                    f"NumPy array ({slices} slices) does not fit into "
+                    f"Zarr on time axis ({len(self.ds.time.values)} slices)."
+                )
+            elif bands != len(self.ds.data_vars):  # pragma: no cover
+                raise ValueError(
+                    f"NumPy array ({bands} bands) does not fit into "
+                    f"Zarr on band axis ({len(self.ds.data_vars)} bands)."
+                )
+            # make sure the band axis is first
+            ndarr = np.transpose(ndarr, (1, 0, 2, 3))
+        return xr.Dataset(
+            data_vars={
+                f"Band{i}": (self.axis_names, band)
+                for i, band in zip(range(1, self.count + 1), ndarr)
             },
             coords=coords,
         )
@@ -365,7 +390,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         -------
         True or False
         """
-        return isinstance(process_data, (xr.Dataset, xr.DataArray))
+        return isinstance(process_data, (xr.Dataset, xr.DataArray, np.ndarray))
 
     def output_cleaned(self, process_data):
         """
@@ -397,6 +422,9 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
 
         elif isinstance(process_data, xr.DataArray):
             return self._dataarray_to_dataset(process_data)
+
+        elif isinstance(process_data, np.ndarray):
+            return self._ndarray_to_dataset(process_data)
 
         else:  # pragma: no cover
             raise TypeError(
