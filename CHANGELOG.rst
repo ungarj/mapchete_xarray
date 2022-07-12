@@ -4,6 +4,21 @@ Changelog
 
 
 ---------------------
+2022.7.0 - 2022.05.04
+---------------------
+
+Note: major overhaul of package.
+
+* core
+
+    * removed support for all storage functionalities except single Zarr output
+
+* tests
+
+    * rewrote whole test suite; added Sentinel-2 test fixtures
+
+
+---------------------
 2022.5.0 - 2022.05.04
 ---------------------
 
