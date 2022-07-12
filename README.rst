@@ -2,7 +2,7 @@
 mapchete xarray
 ===============
 
-This driver enables mapchete to write multidimensional arrays into a `Zarr`_` archive.
+This driver enables mapchete to write multidimensional arrays into a `Zarr`_ archive.
 
 .. image:: https://badge.fury.io/py/mapchete-xarray.svg
     :target: https://badge.fury.io/py/mapchete-xarray
