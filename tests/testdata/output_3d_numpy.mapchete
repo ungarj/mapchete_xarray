@@ -1,0 +1,14 @@
+process: generate_array.py
+zoom_levels: 5
+input:
+output:
+    format: xarray
+    path: output_3d_numpy.zarr
+    dtype: uint16
+    bands: 3
+pyramid:
+    grid: geodetic
+    metatiling: 1
+process_bounds: [-180, 45, -135, 90]
+add_timestamps: false
+return_dataarray: false

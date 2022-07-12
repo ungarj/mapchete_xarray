@@ -1,0 +1,18 @@
+process: generate_array.py
+zoom_levels: 5
+input:
+output:
+    format: xarray
+    path: output_4d.zarr
+    dtype: uint16
+    bands: 3
+    chunksize: 256
+    time:
+        start: 2022-03-01
+        end: 2022-03-31
+        pattern: 0 0 * * *
+        chunksize: 10
+pyramid:
+    grid: geodetic
+    metatiling: 1
+process_bounds: [-180, 45, -135, 90]

@@ -1,0 +1,257 @@
+{
+    "metadata": {
+        ".zattrs": {
+            "mapchete": {
+                "driver": {
+                    "bands": 3,
+                    "chunksize": 256,
+                    "delimiters": {
+                        "bounds": [
+                            15.0064,
+                            47.7604,
+                            16.4863,
+                            48.7485
+                        ],
+                        "effective_bounds": [
+                            11.25,
+                            45.0,
+                            16.875,
+                            50.625
+                        ],
+                        "process_bounds": [
+                            15.0064,
+                            47.7604,
+                            16.4863,
+                            48.7485
+                        ],
+                        "zoom": [
+                            5
+                        ]
+                    },
+                    "dtype": "uint16",
+                    "format": "xarray",
+                    "mode": "continue",
+                    "time": {
+                        "end": "2022-06-11",
+                        "start": "2022-06-01",
+                        "steps": [
+                            "2022-06-01",
+                            "2022-06-04",
+                            "2022-06-06",
+                            "2022-06-09",
+                            "2022-06-11"
+                        ]
+                    }
+                },
+                "pyramid": {
+                    "grid": {
+                        "bounds": [
+                            -180.0,
+                            -90.0,
+                            180.0,
+                            90.0
+                        ],
+                        "is_global": true,
+                        "shape": [
+                            1,
+                            2
+                        ],
+                        "srs": {
+                            "wkt": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST],AUTHORITY[\"EPSG\",\"4326\"]]"
+                        },
+                        "type": "geodetic"
+                    },
+                    "metatiling": 1,
+                    "pixelbuffer": 0,
+                    "tile_size": 256
+                }
+            }
+        },
+        ".zgroup": {
+            "zarr_format": 2
+        },
+        "Band1/.zarray": {
+            "chunks": [
+                8,
+                256,
+                256
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<u2",
+            "fill_value": 0,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                5,
+                256,
+                256
+            ],
+            "zarr_format": 2
+        },
+        "Band1/.zattrs": {
+            "AREA_OR_POINT": "Area",
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "Y",
+                "X"
+            ],
+            "_CRS": {
+                "wkt": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST],AUTHORITY[\"EPSG\",\"4326\"]]"
+            }
+        },
+        "Band2/.zarray": {
+            "chunks": [
+                8,
+                256,
+                256
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<u2",
+            "fill_value": 0,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                5,
+                256,
+                256
+            ],
+            "zarr_format": 2
+        },
+        "Band2/.zattrs": {
+            "AREA_OR_POINT": "Area",
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "Y",
+                "X"
+            ],
+            "_CRS": {
+                "wkt": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST],AUTHORITY[\"EPSG\",\"4326\"]]"
+            }
+        },
+        "Band3/.zarray": {
+            "chunks": [
+                8,
+                256,
+                256
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<u2",
+            "fill_value": 0,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                5,
+                256,
+                256
+            ],
+            "zarr_format": 2
+        },
+        "Band3/.zattrs": {
+            "AREA_OR_POINT": "Area",
+            "_ARRAY_DIMENSIONS": [
+                "time",
+                "Y",
+                "X"
+            ],
+            "_CRS": {
+                "wkt": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AXIS[\"Latitude\",NORTH],AXIS[\"Longitude\",EAST],AUTHORITY[\"EPSG\",\"4326\"]]"
+            }
+        },
+        "X/.zarray": {
+            "chunks": [
+                256
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f8",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                256
+            ],
+            "zarr_format": 2
+        },
+        "X/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "X"
+            ]
+        },
+        "Y/.zarray": {
+            "chunks": [
+                256
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<f8",
+            "fill_value": "NaN",
+            "filters": null,
+            "order": "C",
+            "shape": [
+                256
+            ],
+            "zarr_format": 2
+        },
+        "Y/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "Y"
+            ]
+        },
+        "time/.zarray": {
+            "chunks": [
+                5
+            ],
+            "compressor": {
+                "blocksize": 0,
+                "clevel": 5,
+                "cname": "lz4",
+                "id": "blosc",
+                "shuffle": 1
+            },
+            "dtype": "<i8",
+            "fill_value": null,
+            "filters": null,
+            "order": "C",
+            "shape": [
+                5
+            ],
+            "zarr_format": 2
+        },
+        "time/.zattrs": {
+            "_ARRAY_DIMENSIONS": [
+                "time"
+            ],
+            "calendar": "proleptic_gregorian",
+            "units": "days since 2022-06-01 00:00:00"
+        }
+    },
+    "zarr_consolidated_format": 1
+}

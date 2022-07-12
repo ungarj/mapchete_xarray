@@ -1,8 +1,9 @@
 import os
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 # get version number
-with open('mapchete_xarray/__init__.py') as f:
+with open("mapchete_xarray/__init__.py") as f:
     for line in f:
         if line.find("__version__") >= 0:
             version = line.split("=")[1].strip()
@@ -11,44 +12,49 @@ with open('mapchete_xarray/__init__.py') as f:
             continue
 
 # use README for project long_description
-with open('README.rst') as f:
+with open("README.rst") as f:
     readme = f.read()
 
 
 def parse_requirements(file):
-    return sorted(set(
-        line.partition('#')[0].strip()
-        for line in open(os.path.join(os.path.dirname(__file__), file))
-    ) - set(''))
+    return sorted(
+        set(
+            line.partition("#")[0].strip()
+            for line in open(os.path.join(os.path.dirname(__file__), file))
+        )
+        - set("")
+    )
+
 
 setup(
-    name='mapchete_xarray',
+    name="mapchete_xarray",
     version=version,
-    description='Mapchete xarray output driver',
+    description="Mapchete xarray output driver",
     long_description=readme,
-    long_description_content_type='text/x-rst',
-    author='Joachim Ungar',
-    author_email='joachim.ungar@gmail.com',
-    url='https://github.com/ungarj/mapchete_xarray',
-    license='MIT',
+    long_description_content_type="text/x-rst",
+    author="Joachim Ungar",
+    author_email="joachim.ungar@gmail.com",
+    url="https://github.com/ungarj/mapchete_xarray",
+    license="MIT",
     packages=find_packages(),
-    install_requires=parse_requirements('requirements.txt'),
+    install_requires=parse_requirements("requirements.txt"),
     entry_points={
-        'mapchete.formats.drivers': [
-            'xarray=mapchete_xarray',
+        "mapchete.formats.drivers": [
+            "xarray=mapchete_xarray",
         ],
         "mapchete.processes": [
             "convert_to_xarray=mapchete_xarray.processes.convert_to_xarray",
         ],
     },
     classifiers=[
-        'Development Status :: 3 - Alpha',
-        'Intended Audience :: Developers',
-        'Topic :: Scientific/Engineering :: GIS',
-        'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Topic :: Scientific/Engineering :: GIS",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest']
+    setup_requires=["pytest-runner"],
+    tests_require=["pytest"],
 )

@@ -1,4 +1,5 @@
 import json
+
 import xarray as xr
 
 
@@ -16,9 +17,11 @@ def execute(
     coords = {}
     attrs = {}
     with mp.open("raster") as raster:
-        if raster.is_empty():
+        if raster.is_empty():  # pragma: no cover
             return "empty"
         data = raster.read()
+        if data.mask.all():  # pragma: no cover
+            return "empty"
 
     if "indexes" in mp.input:  # pragma: no cover
         if index_band is None:

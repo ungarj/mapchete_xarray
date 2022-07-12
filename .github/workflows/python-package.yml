@@ -11,11 +11,13 @@ on:
 
 jobs:
   test:
+    runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ 3.7, 3.8 ]
-    runs-on: ubuntu-latest
+        python-version: [ "3.7", "3.8", "3.9" ]
+        os: [ "ubuntu-20.04", "ubuntu-22.04" ]
 
     steps:
     - uses: actions/checkout@v2
@@ -29,7 +31,9 @@ jobs:
       env:
         CURL_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
       run: |
-        sudo apt-add-repository -y ppa:ubuntugis/ubuntugis-unstable && sudo apt-get -y update && sudo apt-get install -y gdal-bin python-tk libgdal-dev
+        sudo apt-add-repository -y ppa:ubuntugis/ubuntugis-unstable
+        sudo apt-get -y update
+        sudo apt-get install -y gdal-bin python-tk libgdal-dev
         python -m pip install --upgrade pip
         pip install -r requirements.txt -r tests/requirements.txt
         pip install -e .[complete]

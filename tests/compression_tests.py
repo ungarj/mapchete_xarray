@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import os
+import time
 from collections import namedtuple
 from itertools import product
-import os
 from tempfile import TemporaryDirectory
-import time
+
 import xarray as xr
 import zarr
 
@@ -13,7 +14,7 @@ example_stack = xr.open_dataset("testdata/example.nc")["data"]
 CompressorArgs = namedtuple("CompressorArgs", ["cname", "clevel", "shuffle"])
 
 
-def _folder_size(path='.'):
+def _folder_size(path="."):
     total = 0
     for entry in os.scandir(path):
         if entry.is_file():
@@ -21,6 +22,7 @@ def _folder_size(path='.'):
         elif entry.is_dir():
             total += _folder_size(entry.path)
     return total
+
 
 blosc_compressors = [
     CompressorArgs(cname=cname, clevel=clevel, shuffle=shuffle)
@@ -30,7 +32,7 @@ blosc_compressors = [
         # range(-1, 3)
         ["zstd", "blosclz", "lz4", "lz4hc", "zlib", "snappy"],
         range(1, 10),
-        range(-1, 3)
+        range(-1, 3),
     )
 ]
 
@@ -46,13 +48,11 @@ for args in blosc_compressors:
                         cname=args.cname, clevel=args.clevel, shuffle=args.shuffle
                     )
                 }
-            }
+            },
         )
         elapsed = time.time() - start
         size = _folder_size(tempdir)
-        print("size: {}, time: {}, args: {}".format(
-            size, round(elapsed, 3), args)
-        )
+        print("size: {}, time: {}, args: {}".format(size, round(elapsed, 3), args))
         results[args] = {"size": size, "time": elapsed}
 
 
@@ -71,6 +71,7 @@ def _add_ranks(results):
     for v in results.values():
         v.update(combined_rank=v["size_rank"] + v["time_rank"])
     return results
+
 
 for k, v in _add_ranks(results).items():
     print("{}: {}".format(k, v))
