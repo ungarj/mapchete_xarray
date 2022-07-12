@@ -55,6 +55,14 @@ def output_3d_mapchete():
 
 
 @pytest.fixture
+def output_3d_custom_band_names_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "output_3d_custom_band_names.mapchete"),
+    ) as example:
+        yield example
+
+
+@pytest.fixture
 def output_3d_numpy_mapchete():
     with ProcessFixture(
         os.path.join(TESTDATA_DIR, "output_3d_numpy.mapchete"),

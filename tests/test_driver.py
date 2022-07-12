@@ -104,6 +104,15 @@ def test_zarr_process_output_as_input(zarr_process_output_as_input_mapchete):
     list(zarr_process_output_as_input_mapchete.mp().compute(concurrency=None))
 
 
+def test_custom_band_names_read_kwargs_no_indexes(output_3d_custom_band_names_mapchete):
+    mp = output_3d_custom_band_names_mapchete.mp()
+    tile = output_3d_custom_band_names_mapchete.first_process_tile()
+    list(mp.compute(tile=tile))
+    assert mp.config.output.tiles_exist(tile)
+    data_vars = [v for v in mp.config.output.read(tile).data_vars]
+    assert data_vars == ["red", "green", "blue"]
+
+
 def test_zarr_as_input_read_kwargs_no_indexes(zarr_as_input_mapchete):
     mp = zarr_as_input_mapchete.process_mp()
     with mp.open("zarr") as src:

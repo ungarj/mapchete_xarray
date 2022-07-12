@@ -51,10 +51,21 @@ class OutputDataReader(base.SingleFileOutputReader):
         self.fs = fs_from_path(self.path)
         self.output_params = output_params
         self.zoom = output_params["delimiters"]["zoom"][0]
-        self.count = output_params.get("bands", 1)
+
+        if output_params.get("band_names"):
+            self.band_names = output_params.get("band_names")
+            self.count = len(self.band_names)
+        elif output_params.get("bands"):
+            self.count = output_params.get("bands")
+            self.band_names = [f"Band{i}" for i in range(1, self.count + 1)]
+        else:  # pragma: no cover
+            raise ValueError("either 'count' or 'band_names' has to be provided")
+
         self.dtype = output_params.get("dtype", "uint8")
         self.x_axis_name = output_params.get("x_axis_name", "X")
         self.y_axis_name = output_params.get("y_axis_name", "Y")
+        self.band_axis_name = output_params.get("band_axis_name", "band")
+        self.time_axis_name = output_params.get("time_axis_name", "time")
         self.area_or_point = output_params.get("area_or_point", "Area")
         self.bounds = snap_bounds(
             bounds=output_params["delimiters"]["process_bounds"],
@@ -94,12 +105,13 @@ class OutputDataReader(base.SingleFileOutputReader):
 
     @property
     def bands(self):
-        return [v for v in self.ds.data_vars]
+        """Return band names in correct order."""
+        return self.band_names
 
     @property
     def axis_names(self):
         if self.time:
-            return ("time", self.y_axis_name, self.x_axis_name)
+            return (self.time_axis_name, self.y_axis_name, self.x_axis_name)
         else:
             return (self.y_axis_name, self.x_axis_name)
 
@@ -116,7 +128,7 @@ class OutputDataReader(base.SingleFileOutputReader):
         -------
         process output : array or list
         """
-        return self._read(bounds=output_tile.bounds)
+        return self._read(bounds=output_tile.bounds)[self.band_names]
 
     def empty(self, *args):
         """
@@ -140,7 +152,14 @@ class OutputDataReader(base.SingleFileOutputReader):
         process : ``MapcheteProcess``
         kwargs : keyword arguments
         """
-        return InputTile(tile, process, time=self.time, bands=self.bands)
+        return InputTile(
+            tile,
+            process,
+            time=self.time,
+            time_axis_name=self.time_axis_name,
+            bands=self.bands,
+            band_axis_name=self.band_axis_name,
+        )
 
     def extract_subset(self, input_data_tiles=None, out_tile=None):
         # for mapchete.io.raster.create_mosaic() the input arrays must have
@@ -148,12 +167,17 @@ class OutputDataReader(base.SingleFileOutputReader):
         def _transpose_darrays(input_data_tiles):
             for tile, ds in input_data_tiles:
                 # convert Dataset to DataArray
-                darr = ds.to_array(dim="band")
-                if self.time and darr.dims[0] != "band":  # pragma: no cover
+                darr = ds.to_array(dim=self.band_axis_name)
+                if (
+                    self.time and darr.dims[0] != self.band_axis_name
+                ):  # pragma: no cover
                     yield (
                         tile,
                         darr.transpose(
-                            "band", "time", self.y_axis_name, self.x_axis_name
+                            self.band_axis_name,
+                            self.time_axis_name,
+                            self.y_axis_name,
+                            self.x_axis_name,
                         ).data,
                     )
                 else:
@@ -165,11 +189,11 @@ class OutputDataReader(base.SingleFileOutputReader):
             in_affine=mosaic.affine,
             out_tile=out_tile,
         )
-        coords = {"time": input_data_tiles[0][1].time.values}
+        coords = {self.time_axis_name: input_data_tiles[0][1].time.values}
         return xr.Dataset(
             data_vars={
-                f"Band{i}": (self.axis_names, band)
-                for i, band in zip(range(1, self.count + 1), arr)
+                band_name: (self.axis_names, band)
+                for band_name, band in zip(self.band_names, arr)
             },
             coords=coords,
         )
@@ -210,7 +234,7 @@ class OutputDataReader(base.SingleFileOutputReader):
         }
 
         if self.time:
-            selector["time"] = slice(self.start_time, self.end_time)
+            selector[self.time_axis_name] = slice(self.start_time, self.end_time)
 
         return self.ds.sel(**selector)
 
@@ -244,10 +268,11 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
                 time=self.time,
                 chunksize=self.pyramid.tile_size * self.pyramid.metatiling,
                 fill_value=self.nodata,
-                count=self.count,
+                band_names=self.band_names,
                 dtype=self.dtype,
                 x_axis_name=self.x_axis_name,
                 y_axis_name=self.y_axis_name,
+                time_axis_name=self.time_axis_name,
                 area_or_point=self.area_or_point,
                 output_metadata=dump_metadata(self.output_params),
             )
@@ -316,7 +341,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         }
 
         if self.time:
-            coords["time"] = data.time.values
+            coords[self.time_axis_name] = data.time.values
 
         def write_zarr(ds, region):
             ds.to_zarr(
@@ -330,7 +355,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         ds = self.output_cleaned(data)
         if self.time:
             for timestamps, time_region in self._timestamp_regions(ds.time.values):
-                region["time"] = time_region
+                region[self.time_axis_name] = time_region
                 write_zarr(ds.sel(time=timestamps), region)
         else:
             write_zarr(ds, region)
@@ -338,16 +363,21 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
     def _dataarray_to_dataset(self, darr):
         coords = {}
         if self.time:
-            coords["time"] = np.array(darr.time.values, dtype=np.datetime64)
+            coords[self.time_axis_name] = np.array(
+                darr.time.values, dtype=np.datetime64
+            )
             # make sure the band axis is first
-            if darr.dims[0] != "band":
+            if darr.dims[0] != self.band_axis_name:
                 darr = darr.transpose(
-                    "band", "time", self.y_axis_name, self.x_axis_name
+                    self.band_axis_name,
+                    self.time_axis_name,
+                    self.y_axis_name,
+                    self.x_axis_name,
                 )
         return xr.Dataset(
             data_vars={
-                f"Band{i}": (self.axis_names, band.values)
-                for i, band in zip(range(1, self.count + 1), darr)
+                band_name: (self.axis_names, band.values)
+                for band_name, band in zip(self.band_names, darr)
             },
             coords=coords,
         )
@@ -355,7 +385,9 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
     def _ndarray_to_dataset(self, ndarr):
         coords = {}
         if self.time:
-            coords["time"] = np.array(self.ds.time.values, dtype=np.datetime64)
+            coords[self.time_axis_name] = np.array(
+                self.ds.time.values, dtype=np.datetime64
+            )
             slices, bands = ndarr.shape[:2]
             if slices != len(self.ds.time.values):  # pragma: no cover
                 raise ValueError(
@@ -371,8 +403,8 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             ndarr = np.transpose(ndarr, (1, 0, 2, 3))
         return xr.Dataset(
             data_vars={
-                f"Band{i}": (self.axis_names, band)
-                for i, band in zip(range(1, self.count + 1), ndarr)
+                band_name: (self.axis_names, band)
+                for band_name, band in zip(self.band_names, ndarr)
             },
             coords=coords,
         )
@@ -451,12 +483,23 @@ class InputTile(base.InputTile):
         driver specific parameters
     """
 
-    def __init__(self, tile, process, time=None, bands=None, **kwargs):
+    def __init__(
+        self,
+        tile,
+        process,
+        time=None,
+        time_axis_name=None,
+        bands=None,
+        band_axis_name=None,
+        **kwargs,
+    ):
         """Initialize."""
         self.tile = tile
         self.process = process
         self.time = time
+        self.time_axis_name = time_axis_name
         self.bands = bands
+        self.band_axis_name = band_axis_name
 
     def read(
         self, indexes=None, start_time=None, end_time=None, timestamps=None, **kwargs
@@ -472,19 +515,17 @@ class InputTile(base.InputTile):
         selector = {}
         if self.time:
             if start_time or end_time:
-                selector["time"] = slice(
+                selector[self.time_axis_name] = slice(
                     start_time or self.time.get("start"),
                     end_time or self.time.get("end"),
                 )
             elif timestamps:
-                selector["time"] = np.array(timestamps, dtype=np.datetime64)
+                selector[self.time_axis_name] = np.array(
+                    timestamps, dtype=np.datetime64
+                )
 
         ds = self.process.get_raw_output(self.tile)
-
-        if indexes:
-            return ds[self._get_indexes(indexes)].sel(**selector)
-        else:
-            return ds.sel(**selector)
+        return ds[self._get_indexes(indexes)].sel(**selector)
 
     def is_empty(self):  # pragma: no cover
         """
@@ -497,7 +538,7 @@ class InputTile(base.InputTile):
         return not self.tile.bbox.intersects(self.process.config.area_at_zoom())
 
     def _get_indexes(self, indexes=None):
-        if indexes is None:  # pragma: no cover
+        if indexes is None:
             return self.bands
         indexes = indexes if isinstance(indexes, list) else [indexes]
         out = []
@@ -521,10 +562,11 @@ def initialize_zarr(
     time=None,
     fill_value=None,
     chunksize=256,
-    count=None,
+    band_names=None,
     dtype="uint8",
     x_axis_name="X",
     y_axis_name="Y",
+    time_axis_name="time",
     area_or_point="Area",
     output_metadata=None,
 ):
@@ -580,11 +622,11 @@ def initialize_zarr(
             raise ValueError(
                 "timestamps have to be provied either as list in 'steps' or a pattern in 'pattern'"
             )
-        coords["time"] = coord_time
+        coords[time_axis_name] = coord_time
 
         output_shape = (len(coord_time), *shape)
         output_chunks = (time.get("chunksize", 8), chunksize, chunksize)
-        axis_names = ["time"] + axis_names
+        axis_names = [time_axis_name] + axis_names
 
     else:
         output_shape = shape
@@ -601,8 +643,8 @@ def initialize_zarr(
         )
 
         # add GDAL metadata for each band
-        for i in range(1, count + 1):
-            store = FSStore(f"{path}/Band{i}")
+        for band_name in band_names:
+            store = FSStore(f"{path}/{band_name}")
             zarr.creation.create(
                 shape=output_shape,
                 chunks=output_chunks,
