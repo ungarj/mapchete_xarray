@@ -55,6 +55,14 @@ def output_3d_mapchete():
 
 
 @pytest.fixture
+def output_3d_numpy_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "output_3d_numpy.mapchete"),
+    ) as example:
+        yield example
+
+
+@pytest.fixture
 def output_4d_s3_mapchete():
     with ProcessFixture(
         os.path.join(TESTDATA_DIR, "output_4d.mapchete"),
@@ -68,6 +76,14 @@ def output_4d_s3_mapchete():
 def output_4d_mapchete():
     with ProcessFixture(
         os.path.join(TESTDATA_DIR, "output_4d.mapchete"),
+    ) as example:
+        yield example
+
+
+@pytest.fixture
+def output_4d_numpy_mapchete():
+    with ProcessFixture(
+        os.path.join(TESTDATA_DIR, "output_4d_numpy.mapchete"),
     ) as example:
         yield example
 

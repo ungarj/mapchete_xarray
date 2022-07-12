@@ -11,6 +11,7 @@ def execute(
     y_axis_name="Y",
     add_timestamps=True,
     timestamps=None,
+    return_dataarray=True,
 ):
     timestamps = timestamps or [
         "2022-03-01",
@@ -20,16 +21,21 @@ def execute(
         "2022-03-09",
     ]
     if add_timestamps:
-        shape = (bands, len(timestamps), *mp.tile.shape)
-        dims = ["band", "time", y_axis_name, x_axis_name]
+        shape = (len(timestamps), bands, *mp.tile.shape)
+        dims = ["time", "band", y_axis_name, x_axis_name]
         coords = {"time": [dateutil.parser.parse(t) for t in timestamps]}
     else:
         shape = (bands, *mp.tile.shape)
         dims = ["bands", y_axis_name, x_axis_name]
         coords = {}
 
-    return xr.DataArray(
-        data=np.full(shape=shape, fill_value=500, dtype=dtype),
-        dims=dims,
-        coords=coords,
-    )
+    arr = np.full(shape=shape, fill_value=500, dtype=dtype)
+
+    if return_dataarray:
+        return xr.DataArray(
+            data=arr,
+            dims=dims,
+            coords=coords,
+        )
+    else:
+        return arr

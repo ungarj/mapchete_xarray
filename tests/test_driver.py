@@ -101,7 +101,6 @@ def test_zarr_as_input(zarr_as_input_mapchete):
 
 
 def test_zarr_process_output_as_input(zarr_process_output_as_input_mapchete):
-    # NOTE: this only reads an empty output, thus maybe not testing reading real data
     list(zarr_process_output_as_input_mapchete.mp().compute(concurrency=None))
 
 
@@ -131,6 +130,22 @@ def test_timestamps_error(output_4d_mapchete):
     config["output"]["time"].pop("pattern")
     with pytest.raises(MapcheteConfigError):
         mapchete.open(config)
+
+
+def test_3d_numpy_processed_tile_exists(output_3d_numpy_mapchete):
+    mp = output_3d_numpy_mapchete.mp()
+    tile = output_3d_numpy_mapchete.first_process_tile()
+    list(mp.compute(tile=tile, concurrency=None))
+    assert mp.config.output.tiles_exist(tile)
+    assert mp.config.output.tiles_exist(output_tile=tile)
+
+
+def test_4d_numpy_processed_tile_exists(output_4d_numpy_mapchete):
+    mp = output_4d_numpy_mapchete.mp()
+    tile = output_4d_numpy_mapchete.first_process_tile()
+    list(mp.compute(tile=tile, concurrency=None))
+    assert mp.config.output.tiles_exist(tile)
+    assert mp.config.output.tiles_exist(output_tile=tile)
 
 
 # TODO: test if global grid creation on high zoom level adds performance issues
