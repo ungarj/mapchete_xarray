@@ -20,7 +20,7 @@ def test_initialize_zarr(tmp_path):
         crs=tp.crs,
         fill_value=0,
         chunksize=256,
-        count=3,
+        band_names=["Band1", "Band2", "Band3"],
         dtype="uint8",
     )
     fs = fs_from_path(out_path)
@@ -75,11 +75,11 @@ def test_initialize_zarr_time(tmp_path):
         ),
         fill_value=0,
         chunksize=256,
-        count=3,
+        band_names=["red", "green", "blue"],
         dtype="uint8",
     )
     fs = fs_from_path(out_path)
-    bands = ["Band1", "Band2", "Band3"]
+    bands = ["red", "green", "blue"]
     axes = ["time", "X", "Y"]
     required_files = [".zgroup", ".zmetadata"] + bands + axes
     ls = fs.ls(out_path)
