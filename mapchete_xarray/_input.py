@@ -2,6 +2,7 @@
 Contains all classes required to use the xarray driver as mapchete input.
 """
 
+import numpy as np
 import xarray as xr
 import zarr
 from mapchete.config import snap_bounds
@@ -128,30 +129,37 @@ class InputTile(base.InputTile):
             )
         return self._ds
 
-    def read(self, indexes=None, start_time=None, end_time=None, **kwargs):
+    @property
+    def bands(self):
+        return [v for v in self.ds.data_vars]
+
+    def _get_indexes(self, indexes=None):
+        """Return a list of band names (i.e. Zarr data variable names)."""
+        if indexes is None:  # pragma: no cover
+            return self.bands
+        indexes = indexes if isinstance(indexes, list) else [indexes]
+        out = []
+        for i in indexes:
+            if isinstance(i, int):
+                out.append(self.bands[i])
+            elif isinstance(i, str):
+                out.append(i)
+            else:  # pragma: no cover
+                raise TypeError(
+                    f"band indexes must either be integers or strings, not: {i}"
+                )
+        return out
+
+    def read(
+        self, indexes=None, start_time=None, end_time=None, timestamps=None, **kwargs
+    ):
         """
         Read reprojected & resampled input data.
 
         Returns
         -------
-        data : array or list
-            NumPy array for raster data or feature list for vector data
+        data : xarray.Dataset
         """
-        return self.read_dataset(
-            indexes=indexes, start_time=start_time, end_time=end_time, **kwargs
-        )
-
-    def read_dataset(self, indexes=None, start_time=None, end_time=None, **kwargs):
-        """
-        Read reprojected & resampled input data.
-
-        Returns
-        -------
-        data : array or list
-            NumPy array for raster data or feature list for vector data
-        """
-        if indexes is not None:  # pragma: no cover
-            raise NotImplementedError("selecting bands is not yet implemented.")
         bounds = self.tile.bounds
         selector = {
             self.x_axis_name: slice(bounds.left, bounds.right),
@@ -159,11 +167,18 @@ class InputTile(base.InputTile):
         }
 
         if self.time:
-            selector["time"] = slice(
-                start_time or self.time.get("start"), end_time or self.time.get("end")
-            )
+            if start_time or end_time:
+                selector["time"] = slice(
+                    start_time or self.time.get("start"),
+                    end_time or self.time.get("end"),
+                )
+            elif timestamps:
+                selector["time"] = np.array(timestamps, dtype=np.datetime64)
 
-        return self.ds.sel(**selector)
+        if indexes:
+            return self.ds[self._get_indexes(indexes)].sel(**selector)
+        else:
+            return self.ds.sel(**selector)
 
     def is_empty(self):  # pragma: no cover
         """

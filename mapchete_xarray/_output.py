@@ -93,6 +93,10 @@ class OutputDataReader(base.SingleFileOutputReader):
         return self._ds
 
     @property
+    def bands(self):
+        return [v for v in self.ds.data_vars]
+
+    @property
     def axis_names(self):
         if self.time:
             return ("time", self.y_axis_name, self.x_axis_name)
@@ -114,14 +118,9 @@ class OutputDataReader(base.SingleFileOutputReader):
         """
         return self._read(bounds=output_tile.bounds)
 
-    def empty(self, process_tile):
+    def empty(self, *args):
         """
         Return empty data.
-
-        Parameters
-        ----------
-        process_tile : ``BufferedTile``
-            must be member of process ``TilePyramid``
 
         Returns
         -------
@@ -141,7 +140,7 @@ class OutputDataReader(base.SingleFileOutputReader):
         process : ``MapcheteProcess``
         kwargs : keyword arguments
         """
-        return InputTile(tile, process)
+        return InputTile(tile, process, time=self.time, bands=self.bands)
 
     def extract_subset(self, input_data_tiles=None, out_tile=None):
         # for mapchete.io.raster.create_mosaic() the input arrays must have
@@ -452,12 +451,16 @@ class InputTile(base.InputTile):
         driver specific parameters
     """
 
-    def __init__(self, tile, process, **kwargs):
+    def __init__(self, tile, process, time=None, bands=None, **kwargs):
         """Initialize."""
         self.tile = tile
         self.process = process
+        self.time = time
+        self.bands = bands
 
-    def read(self, **kwargs):
+    def read(
+        self, indexes=None, start_time=None, end_time=None, timestamps=None, **kwargs
+    ):
         """
         Read reprojected & resampled input data.
 
@@ -466,7 +469,22 @@ class InputTile(base.InputTile):
         data : array or list
             NumPy array for raster data or feature list for vector data
         """
-        return self.process.get_raw_output(self.tile)
+        selector = {}
+        if self.time:
+            if start_time or end_time:
+                selector["time"] = slice(
+                    start_time or self.time.get("start"),
+                    end_time or self.time.get("end"),
+                )
+            elif timestamps:
+                selector["time"] = np.array(timestamps, dtype=np.datetime64)
+
+        ds = self.process.get_raw_output(self.tile)
+
+        if indexes:
+            return ds[self._get_indexes(indexes)].sel(**selector)
+        else:
+            return ds.sel(**selector)
 
     def is_empty(self):  # pragma: no cover
         """
@@ -477,6 +495,22 @@ class InputTile(base.InputTile):
         is empty : bool
         """
         return not self.tile.bbox.intersects(self.process.config.area_at_zoom())
+
+    def _get_indexes(self, indexes=None):
+        if indexes is None:  # pragma: no cover
+            return self.bands
+        indexes = indexes if isinstance(indexes, list) else [indexes]
+        out = []
+        for i in indexes:
+            if isinstance(i, int):
+                out.append(self.bands[i])
+            elif isinstance(i, str):
+                out.append(i)
+            else:  # pragma: no cover
+                raise TypeError(
+                    f"band indexes must either be integers or strings, not: {i}"
+                )
+        return out
 
 
 def initialize_zarr(

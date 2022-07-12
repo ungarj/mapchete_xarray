@@ -104,6 +104,96 @@ def test_zarr_process_output_as_input(zarr_process_output_as_input_mapchete):
     list(zarr_process_output_as_input_mapchete.mp().compute(concurrency=None))
 
 
+def test_zarr_as_input_read_kwargs_no_indexes(zarr_as_input_mapchete):
+    mp = zarr_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+        data_vars = [v for v in src.read().data_vars]
+        assert data_vars == ["Band1", "Band2", "Band3"]
+
+
+def test_zarr_as_input_read_kwargs_indexes_by_index(zarr_as_input_mapchete):
+    mp = zarr_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+
+        data_vars = [v for v in src.read(indexes=[0, 2]).data_vars]
+        assert data_vars == ["Band1", "Band3"]
+
+
+def test_zarr_as_input_read_kwargs_indexes_by_name(zarr_as_input_mapchete):
+    mp = zarr_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+
+        data_vars = [v for v in src.read(indexes=["Band1", "Band3"]).data_vars]
+        assert data_vars == ["Band1", "Band3"]
+
+
+def test_zarr_as_input_read_kwargs_time_range(zarr_as_input_mapchete):
+    mp = zarr_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+        assert len(src.read(start_time="2022-06-05").time.values) == 3
+        assert (
+            len(src.read(start_time="2022-06-05", end_time="2022-06-09").time.values)
+            == 2
+        )
+        assert len(src.read(end_time="2022-06-09").time.values) == 4
+
+
+def test_zarr_as_input_read_kwargs_timestamps(zarr_as_input_mapchete):
+    mp = zarr_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+        assert len(src.read(timestamps=["2022-06-04", "2022-06-09"]).time.values) == 2
+
+
+def test_zarr_process_output_as_input_read_kwargs_no_indexes(
+    zarr_process_output_as_input_mapchete,
+):
+    mp = zarr_process_output_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+        data_vars = [v for v in src.read().data_vars]
+        assert data_vars == ["Band1", "Band2", "Band3"]
+
+
+def test_zarr_process_output_as_input_read_kwargs_indexes_by_index(
+    zarr_process_output_as_input_mapchete,
+):
+    mp = zarr_process_output_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+
+        data_vars = [v for v in src.read(indexes=[0, 2]).data_vars]
+        assert data_vars == ["Band1", "Band3"]
+
+
+def test_zarr_process_output_as_input_read_kwargs_indexes_by_name(
+    zarr_process_output_as_input_mapchete,
+):
+    mp = zarr_process_output_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+
+        data_vars = [v for v in src.read(indexes=["Band1", "Band3"]).data_vars]
+        assert data_vars == ["Band1", "Band3"]
+
+
+def test_zarr_process_output_as_input_read_kwargs_time_range(
+    zarr_process_output_as_input_mapchete,
+):
+    mp = zarr_process_output_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+        assert len(src.read(start_time="2022-06-05").time.values) == 3
+        assert (
+            len(src.read(start_time="2022-06-05", end_time="2022-06-09").time.values)
+            == 2
+        )
+        assert len(src.read(end_time="2022-06-09").time.values) == 4
+
+
+def test_zarr_process_output_as_input_read_kwargs_timestamps(
+    zarr_process_output_as_input_mapchete,
+):
+    mp = zarr_process_output_as_input_mapchete.process_mp()
+    with mp.open("zarr") as src:
+        assert len(src.read(timestamps=["2022-06-04", "2022-06-09"]).time.values) == 2
+
+
 def test_output_pixelbuffer_error(output_3d_mapchete):
     config = output_3d_mapchete.dict
     config["output"].update(pixelbuffer=5)
