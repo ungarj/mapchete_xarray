@@ -292,8 +292,19 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         -------
         exists : bool
         """
+
+        def gen(dataset):
+            for var in dataset:
+
+                if "time" in dataset:
+                    for t in dataset.time:
+                        yield dataset[var].sel(time=t).values
+
+                else:
+                    yield dataset[var].values
+
         bounds = process_tile.bounds if process_tile else output_tile.bounds
-        for var in self._read(bounds=bounds).values():
+        for var in gen(self._read(bounds=bounds)):
             if np.any(var != self.nodata):
                 return True
         return False
