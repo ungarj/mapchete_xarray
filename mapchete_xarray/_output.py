@@ -318,40 +318,27 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         """
 
         tile = process_tile or output_tile
-
         zarr_chunk_row, zarr_chunk_col = self._zarr_chunk_from_xy(
             tile.bbox.centroid.x, tile.bbox.centroid.y
-        )
-
-        n_time_chunks = (
-            math.ceil(
-                len(self.ds.time) / self.time.get("chunksize", DEFAULT_TIME_CHUNKSIZE)
-            )
-            if self.time
-            else None
         )
 
         for var in self.ds:
 
             if self.time:
 
-                for zarr_chunk_time in range(n_time_chunks):
-
-                    if path_exists(
-                        os.path.join(
-                            self.path,
-                            var,
-                            f"{zarr_chunk_time}.{zarr_chunk_row}.{zarr_chunk_col}",
-                        )
-                    ):
-
-                        return True
+                if path_exists(
+                    os.path.join(
+                        self.path,
+                        var,
+                        f"0.{zarr_chunk_row}.{zarr_chunk_col}",
+                    )
+                ):
+                    return True
             else:
                 if path_exists(
                     os.path.join(self.path, var, f"{zarr_chunk_row}.{zarr_chunk_col}")
                 ):
                     return True
-
         return False
 
     def is_valid_with_config(self, config):
