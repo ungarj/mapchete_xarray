@@ -297,17 +297,6 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             pixel_x_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
         )
         col = abs(int((x - self.ds.X.min()) / tile_x_size))
-        if on_edge_use in ["lb", "lt"] and (x - self.ds.X.min()) % tile_x_size == 0.0:
-            col -= 1
-
-        # handle Antimeridian wrapping
-        if self.pyramid.is_global:
-            # left side
-            if col == -1:
-                col = self.pyramid.matrix_width(self.zoom) - 1
-            # right side
-            elif col >= self.pyramid.matrix_width(self.zoom):
-                col = col % self.pyramid.matrix_width(self.zoom)
 
         return row, col
 
