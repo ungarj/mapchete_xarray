@@ -104,6 +104,20 @@ def test_zarr_process_output_as_input(zarr_process_output_as_input_mapchete):
     list(zarr_process_output_as_input_mapchete.mp().compute(concurrency=None))
 
 
+def test_zarr_process_output_as_input_tile_exists(
+    zarr_process_output_as_input_mapchete,
+):
+    first_run = list(
+        zarr_process_output_as_input_mapchete.mp().compute(concurrency=None)
+    )
+    assert first_run[0]._result.written is True
+
+    second_run = list(
+        zarr_process_output_as_input_mapchete.mp().compute(concurrency=None)
+    )
+    assert second_run[0]._result.written is False
+
+
 def test_custom_band_names_read_kwargs_no_indexes(output_3d_custom_band_names_mapchete):
     mp = output_3d_custom_band_names_mapchete.mp()
     tile = output_3d_custom_band_names_mapchete.first_process_tile()
