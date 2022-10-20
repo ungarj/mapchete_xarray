@@ -287,7 +287,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         tile_y_size = round(
             pixel_y_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
         )
-        row = abs(int((self.ds.Y.max() - y) / tile_y_size))
+        row = abs(int((self.ds[self.y_axis_name].max() - y) / tile_y_size))
         if on_edge_use in ["rt", "lt"] and (self.ds.Y.max() - y) % tile_y_size == 0.0:
             row -= 1
 
@@ -296,7 +296,8 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         tile_x_size = round(
             pixel_x_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
         )
-        col = abs(int((x - self.ds.X.min()) / tile_x_size))
+
+        col = abs(int((x - self.ds[self.x_axis_name].min()) / tile_x_size))
 
         return row, col
 
