@@ -4,6 +4,7 @@ Contains all classes required to use the xarray driver as mapchete output.
 
 import logging
 import math
+import os
 
 import croniter
 import dateutil
@@ -28,6 +29,8 @@ METADATA = {
     "mode": "w",
     "file_extensions": ["zarr"],
 }
+
+DEFAULT_TIME_CHUNKSIZE = 8
 
 
 class OutputDataReader(base.SingleFileOutputReader):
@@ -277,6 +280,37 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
                 output_metadata=dump_metadata(self.output_params),
             )
 
+    def _zarr_chunk_from_xy(self, x, y, on_edge_use="rb"):
+
+        # determine row
+        pixel_y_size = _pixel_y_size(self.bounds.top, self.bounds.bottom, self.shape[0])
+        tile_y_size = round(
+            pixel_y_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
+        )
+        row = abs(int((self.ds.Y.max() - y) / tile_y_size))
+        if on_edge_use in ["rt", "lt"] and (self.ds.Y.max() - y) % tile_y_size == 0.0:
+            row -= 1
+
+        pixel_x_size = _pixel_x_size(self.bounds.right, self.bounds.left, self.shape[1])
+        # determine column
+        tile_x_size = round(
+            pixel_x_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
+        )
+        col = abs(int((x - self.ds.X.min()) / tile_x_size))
+        if on_edge_use in ["lb", "lt"] and (x - self.ds.X.min()) % tile_x_size == 0.0:
+            col -= 1
+
+        # handle Antimeridian wrapping
+        if self.pyramid.is_global:
+            # left side
+            if col == -1:
+                col = self.pyramid.matrix_width(self.zoom) - 1
+            # right side
+            elif col >= self.pyramid.matrix_width(self.zoom):
+                col = col % self.pyramid.matrix_width(self.zoom)
+
+        return row, col
+
     def tiles_exist(self, process_tile=None, output_tile=None):
         """
         Check whether output tiles of a tile (either process or output) exists.
@@ -293,20 +327,41 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         exists : bool
         """
 
-        def gen(dataset):
-            for var in dataset:
+        tile = process_tile or output_tile
 
-                if "time" in dataset:
-                    for t in dataset.time:
-                        yield dataset[var].sel(time=t).values
+        zarr_chunk_x, zarr_chunk_y = self._zarr_chunk_from_xy(
+            tile.bbox.centroid.x, tile.bbox.centroid.y
+        )
 
-                else:
-                    yield dataset[var].values
+        n_time_chunks = (
+            math.ceil(
+                len(self.ds.time) / self.time.get("chunksize", DEFAULT_TIME_CHUNKSIZE)
+            )
+            if self.time
+            else None
+        )
 
-        bounds = process_tile.bounds if process_tile else output_tile.bounds
-        for var in gen(self._read(bounds=bounds)):
-            if np.any(var != self.nodata):
-                return True
+        for var in self.ds:
+
+            if self.time:
+
+                for zarr_chunk_time in range(n_time_chunks):
+
+                    if path_exists(
+                        os.path.join(
+                            self.path,
+                            var,
+                            f"{zarr_chunk_time}.{zarr_chunk_y}.{zarr_chunk_x}",
+                        )
+                    ):
+
+                        return True
+            else:
+                if path_exists(
+                    os.path.join(self.path, var, f"{zarr_chunk_y}.{zarr_chunk_x}")
+                ):
+                    return True
+
         return False
 
     def is_valid_with_config(self, config):
@@ -565,6 +620,14 @@ class InputTile(base.InputTile):
         return out
 
 
+def _pixel_x_size(right, left, width):
+    return (right - left) / width
+
+
+def _pixel_y_size(top, bottom, height):
+    return (top - bottom) / -height
+
+
 def initialize_zarr(
     path=None,
     bounds=None,
@@ -586,8 +649,8 @@ def initialize_zarr(
 
     height, width = shape
     bounds = Bounds(*bounds)
-    pixel_x_size = (bounds.right - bounds.left) / width
-    pixel_y_size = (bounds.top - bounds.bottom) / -height
+    pixel_x_size = _pixel_x_size(bounds.right, bounds.left, width)
+    pixel_y_size = _pixel_y_size(bounds.top, bounds.bottom, height)
 
     coord_x = [bounds.left + pixel_x_size / 2 + i * pixel_x_size for i in range(width)]
     coord_y = [bounds.top + pixel_y_size / 2 + i * pixel_y_size for i in range(height)]
@@ -636,7 +699,11 @@ def initialize_zarr(
         coords[time_axis_name] = coord_time
 
         output_shape = (len(coord_time), *shape)
-        output_chunks = (time.get("chunksize", 8), chunksize, chunksize)
+        output_chunks = (
+            time.get("chunksize", DEFAULT_TIME_CHUNKSIZE),
+            chunksize,
+            chunksize,
+        )
         axis_names = [time_axis_name] + axis_names
 
     else:
