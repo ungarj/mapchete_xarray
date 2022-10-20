@@ -319,7 +319,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
 
         tile = process_tile or output_tile
 
-        zarr_chunk_x, zarr_chunk_y = self._zarr_chunk_from_xy(
+        zarr_chunk_row, zarr_chunk_col = self._zarr_chunk_from_xy(
             tile.bbox.centroid.x, tile.bbox.centroid.y
         )
 
@@ -341,14 +341,14 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
                         os.path.join(
                             self.path,
                             var,
-                            f"{zarr_chunk_time}.{zarr_chunk_y}.{zarr_chunk_x}",
+                            f"{zarr_chunk_time}.{zarr_chunk_row}.{zarr_chunk_col}",
                         )
                     ):
 
                         return True
             else:
                 if path_exists(
-                    os.path.join(self.path, var, f"{zarr_chunk_y}.{zarr_chunk_x}")
+                    os.path.join(self.path, var, f"{zarr_chunk_row}.{zarr_chunk_col}")
                 ):
                     return True
 
