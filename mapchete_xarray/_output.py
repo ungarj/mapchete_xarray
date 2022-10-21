@@ -4,6 +4,7 @@ Contains all classes required to use the xarray driver as mapchete output.
 
 import logging
 import math
+import os
 
 import croniter
 import dateutil
@@ -28,6 +29,8 @@ METADATA = {
     "mode": "w",
     "file_extensions": ["zarr"],
 }
+
+DEFAULT_TIME_CHUNKSIZE = 8
 
 
 class OutputDataReader(base.SingleFileOutputReader):
@@ -277,6 +280,24 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
                 output_metadata=dump_metadata(self.output_params),
             )
 
+    def _zarr_chunk_from_xy(self, x, y):
+
+        # determine row
+        pixel_y_size = _pixel_y_size(self.bounds.top, self.bounds.bottom, self.shape[0])
+        tile_y_size = round(
+            pixel_y_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
+        )
+        row = abs(int((self.ds[self.y_axis_name].max() - y) / tile_y_size))
+
+        # determine column
+        pixel_x_size = _pixel_x_size(self.bounds.right, self.bounds.left, self.shape[1])
+        tile_x_size = round(
+            pixel_x_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
+        )
+        col = abs(int((x - self.ds[self.x_axis_name].min()) / tile_x_size))
+
+        return row, col
+
     def tiles_exist(self, process_tile=None, output_tile=None):
         """
         Check whether output tiles of a tile (either process or output) exists.
@@ -292,10 +313,29 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         -------
         exists : bool
         """
-        bounds = process_tile.bounds if process_tile else output_tile.bounds
-        for var in self._read(bounds=bounds).values():
-            if np.any(var != self.nodata):
-                return True
+
+        tile = process_tile or output_tile
+        zarr_chunk_row, zarr_chunk_col = self._zarr_chunk_from_xy(
+            tile.bbox.centroid.x, tile.bbox.centroid.y
+        )
+
+        for var in self.ds:
+
+            if self.time:
+
+                if path_exists(
+                    os.path.join(
+                        self.path,
+                        var,
+                        f"0.{zarr_chunk_row}.{zarr_chunk_col}",
+                    )
+                ):
+                    return True
+            else:
+                if path_exists(
+                    os.path.join(self.path, var, f"{zarr_chunk_row}.{zarr_chunk_col}")
+                ):
+                    return True
         return False
 
     def is_valid_with_config(self, config):
@@ -554,6 +594,14 @@ class InputTile(base.InputTile):
         return out
 
 
+def _pixel_x_size(right, left, width):
+    return (right - left) / width
+
+
+def _pixel_y_size(top, bottom, height):
+    return (top - bottom) / -height
+
+
 def initialize_zarr(
     path=None,
     bounds=None,
@@ -575,8 +623,8 @@ def initialize_zarr(
 
     height, width = shape
     bounds = Bounds(*bounds)
-    pixel_x_size = (bounds.right - bounds.left) / width
-    pixel_y_size = (bounds.top - bounds.bottom) / -height
+    pixel_x_size = _pixel_x_size(bounds.right, bounds.left, width)
+    pixel_y_size = _pixel_y_size(bounds.top, bounds.bottom, height)
 
     coord_x = [bounds.left + pixel_x_size / 2 + i * pixel_x_size for i in range(width)]
     coord_y = [bounds.top + pixel_y_size / 2 + i * pixel_y_size for i in range(height)]
@@ -625,7 +673,11 @@ def initialize_zarr(
         coords[time_axis_name] = coord_time
 
         output_shape = (len(coord_time), *shape)
-        output_chunks = (time.get("chunksize", 8), chunksize, chunksize)
+        output_chunks = (
+            time.get("chunksize", DEFAULT_TIME_CHUNKSIZE),
+            chunksize,
+            chunksize,
+        )
         axis_names = [time_axis_name] + axis_names
 
     else:
