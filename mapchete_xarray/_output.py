@@ -280,7 +280,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
                 output_metadata=dump_metadata(self.output_params),
             )
 
-    def _zarr_chunk_from_xy(self, x, y, on_edge_use="rb"):
+    def _zarr_chunk_from_xy(self, x, y):
 
         # determine row
         pixel_y_size = _pixel_y_size(self.bounds.top, self.bounds.bottom, self.shape[0])
@@ -288,15 +288,12 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
             pixel_y_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
         )
         row = abs(int((self.ds[self.y_axis_name].max() - y) / tile_y_size))
-        if on_edge_use in ["rt", "lt"] and (self.ds.Y.max() - y) % tile_y_size == 0.0:
-            row -= 1
 
-        pixel_x_size = _pixel_x_size(self.bounds.right, self.bounds.left, self.shape[1])
         # determine column
+        pixel_x_size = _pixel_x_size(self.bounds.right, self.bounds.left, self.shape[1])
         tile_x_size = round(
             pixel_x_size * self.pyramid.tile_size * self.pyramid.metatiling, 20
         )
-
         col = abs(int((x - self.ds[self.x_axis_name].min()) / tile_x_size))
 
         return row, col
