@@ -4,7 +4,6 @@ Contains all classes required to use the xarray driver as mapchete output.
 
 import logging
 import math
-import os
 
 import croniter
 import dateutil
