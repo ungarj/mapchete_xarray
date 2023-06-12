@@ -15,7 +15,6 @@ from mapchete.config import snap_bounds, validate_values
 from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
 from mapchete.formats.tools import compare_metadata_params, dump_metadata, load_metadata
-from mapchete.io import fs_from_path, path_exists
 from mapchete.io.raster import bounds_to_ranges, create_mosaic, extract_from_array
 from mapchete.path import MPath
 from rasterio.transform import from_origin
@@ -52,7 +51,6 @@ class OutputDataReader(base.SingleFileOutputReader):
         self.path = output_params["path"]
         if not self.path.endswith(self.file_extension):
             raise MapcheteConfigError("output path must end with .zarr")
-        self.fs = fs_from_path(self.path)
         self.output_params = output_params
         self.zoom = output_params["delimiters"]["zoom"][0]
 
@@ -323,19 +321,10 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         for var in self.ds:
 
             if self.time:
-
-                if path_exists(
-                    os.path.join(
-                        self.path,
-                        var,
-                        f"0.{zarr_chunk_row}.{zarr_chunk_col}",
-                    )
-                ):
+                if (self.path / var / f"0.{zarr_chunk_row}.{zarr_chunk_col}").exists():
                     return True
             else:
-                if path_exists(
-                    os.path.join(self.path, var, f"{zarr_chunk_row}.{zarr_chunk_col}")
-                ):
+                if (self.path / var / f"{zarr_chunk_row}.{zarr_chunk_col}").exists():
                     return True
         return False
 
@@ -718,8 +707,5 @@ def initialize_zarr(
 
     except Exception:  # pragma: no cover
         # remove leftovers if something failed during initialization
-        try:
-            fs_from_path(path).rm(path, recursive=True)
-        except FileNotFoundError:
-            pass
+        path.rm(recursive=True, ignore_errors=True)
         raise
