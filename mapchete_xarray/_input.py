@@ -4,13 +4,11 @@ Contains all classes required to use the xarray driver as mapchete input.
 
 import numpy as np
 import xarray as xr
-import zarr
 from mapchete.config import snap_bounds
 from mapchete.formats import base, load_metadata
 from mapchete.io import path_exists
 from mapchete.io.vector import reproject_geometry
 from shapely.geometry import box
-from zarr.storage import FSStore
 
 
 class InputData(base.InputData):
