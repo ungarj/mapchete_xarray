@@ -3,6 +3,19 @@ Changelog
 #########
 
 ----------------------
+2023.6.0 - 2026.06.13
+----------------------
+
+* core
+
+    * make compatible with newer mapchete versions (`mapchete.path.MPath`) (#31)
+
+* tests
+
+    * remove tests for Python 3.7 and add tests for Python 3.10 (#31)
+
+
+----------------------
 2022.10.0 - 2022.10.21
 ----------------------
 
