@@ -3,15 +3,14 @@ import os
 
 import dateutil
 import zarr
-from mapchete.io import fs_from_path
 from rasterio.crs import CRS
 from tilematrix import TilePyramid
 
 from mapchete_xarray._output import initialize_zarr
 
 
-def test_initialize_zarr(tmp_path):
-    out_path = os.path.join(tmp_path, "test.zarr")
+def test_initialize_zarr(mp_tmpdir):
+    out_path = mp_tmpdir / "test.zarr"
     tp = TilePyramid("geodetic")
     initialize_zarr(
         path=out_path,
@@ -23,11 +22,10 @@ def test_initialize_zarr(tmp_path):
         band_names=["Band1", "Band2", "Band3"],
         dtype="uint8",
     )
-    fs = fs_from_path(out_path)
     bands = ["Band1", "Band2", "Band3"]
     axes = ["X", "Y"]
     required_files = [".zgroup", ".zmetadata"] + bands + axes
-    ls = fs.ls(out_path)
+    ls = out_path.ls()
     for required_file in required_files:
         for file in ls:
             if file.endswith(required_file):
@@ -59,8 +57,8 @@ def test_initialize_zarr(tmp_path):
                         assert 10 < coord < 20
 
 
-def test_initialize_zarr_time(tmp_path):
-    out_path = os.path.join(tmp_path, "test.zarr")
+def test_initialize_zarr_time(mp_tmpdir):
+    out_path = mp_tmpdir / "test.zarr"
     tp = TilePyramid("geodetic")
     initialize_zarr(
         path=out_path,
@@ -78,11 +76,10 @@ def test_initialize_zarr_time(tmp_path):
         band_names=["red", "green", "blue"],
         dtype="uint8",
     )
-    fs = fs_from_path(out_path)
     bands = ["red", "green", "blue"]
     axes = ["time", "X", "Y"]
     required_files = [".zgroup", ".zmetadata"] + bands + axes
-    ls = fs.ls(out_path)
+    ls = out_path.ls()
     for required_file in required_files:
         for file in ls:
             if file.endswith(required_file):

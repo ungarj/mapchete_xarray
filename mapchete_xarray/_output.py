@@ -4,7 +4,6 @@ Contains all classes required to use the xarray driver as mapchete output.
 
 import logging
 import math
-import os
 
 import croniter
 import dateutil
@@ -15,8 +14,8 @@ from mapchete.config import snap_bounds, validate_values
 from mapchete.errors import MapcheteConfigError
 from mapchete.formats import base
 from mapchete.formats.tools import compare_metadata_params, dump_metadata, load_metadata
-from mapchete.io import fs_from_path, path_exists
 from mapchete.io.raster import bounds_to_ranges, create_mosaic, extract_from_array
+from mapchete.path import MPath
 from rasterio.transform import from_origin
 from tilematrix import Bounds
 from zarr.storage import FSStore
@@ -51,7 +50,6 @@ class OutputDataReader(base.SingleFileOutputReader):
         self.path = output_params["path"]
         if not self.path.endswith(self.file_extension):
             raise MapcheteConfigError("output path must end with .zarr")
-        self.fs = fs_from_path(self.path)
         self.output_params = output_params
         self.zoom = output_params["delimiters"]["zoom"][0]
 
@@ -250,9 +248,9 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         super().__init__(output_params, *args, **kwargs)
 
     def prepare(self, **kwargs):
-        if path_exists(self.path):
+        if self.path.exists():
             # verify it is compatible with our output parameters / chunking
-            archive = zarr.open(FSStore(f"{self.path}"))
+            archive = zarr.open(FSStore(f"{self.path}", fs=self.path.fs))
             mapchete_params = archive.attrs.get("mapchete")
             if mapchete_params is None:  # pragma: no cover
                 raise TypeError(
@@ -322,19 +320,10 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
         for var in self.ds:
 
             if self.time:
-
-                if path_exists(
-                    os.path.join(
-                        self.path,
-                        var,
-                        f"0.{zarr_chunk_row}.{zarr_chunk_col}",
-                    )
-                ):
+                if (self.path / var / f"0.{zarr_chunk_row}.{zarr_chunk_col}").exists():
                     return True
             else:
-                if path_exists(
-                    os.path.join(self.path, var, f"{zarr_chunk_row}.{zarr_chunk_col}")
-                ):
+                if (self.path / var / f"{zarr_chunk_row}.{zarr_chunk_col}").exists():
                     return True
         return False
 
@@ -359,7 +348,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
                     "when using a time axis, please specify the time stamps either through "
                     "'pattern' or 'steps'"
                 )
-        return validate_values(config, [("path", str)])
+        return validate_values(config, [("path", (str, MPath))])
 
     def write(self, process_tile, data):
         """
@@ -385,7 +374,7 @@ class OutputDataWriter(base.SingleFileOutputWriter, OutputDataReader):
 
         def write_zarr(ds, region):
             ds.to_zarr(
-                FSStore(self.path),
+                FSStore(str(self.path), fs=self.path.fs),
                 mode="r+",
                 compute=True,
                 safe_chunks=True,
@@ -618,7 +607,8 @@ def initialize_zarr(
     area_or_point="Area",
     output_metadata=None,
 ):
-    if path_exists(path):  # pragma: no cover
+    path = MPath.from_inp(path)
+    if path.exists():  # pragma: no cover
         raise IOError(f"cannot initialize zarr storage as path already exists: {path}")
 
     height, width = shape
@@ -688,7 +678,7 @@ def initialize_zarr(
         # write zarr
         ds = xr.Dataset(coords=coords)
         ds.to_zarr(
-            FSStore(path),
+            FSStore(path, fs=path.fs),
             compute=False,
             encoding={var: {"_FillValue": fill_value} for var in ds.data_vars},
             safe_chunks=True,
@@ -696,7 +686,7 @@ def initialize_zarr(
 
         # add GDAL metadata for each band
         for band_name in band_names:
-            store = FSStore(f"{path}/{band_name}")
+            store = FSStore(f"{path}/{band_name}", fs=path.fs)
             zarr.creation.create(
                 shape=output_shape,
                 chunks=output_chunks,
@@ -716,8 +706,5 @@ def initialize_zarr(
 
     except Exception:  # pragma: no cover
         # remove leftovers if something failed during initialization
-        try:
-            fs_from_path(path).rm(path, recursive=True)
-        except FileNotFoundError:
-            pass
+        path.rm(recursive=True, ignore_errors=True)
         raise

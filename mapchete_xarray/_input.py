@@ -4,13 +4,10 @@ Contains all classes required to use the xarray driver as mapchete input.
 
 import numpy as np
 import xarray as xr
-import zarr
 from mapchete.config import snap_bounds
 from mapchete.formats import base, load_metadata
-from mapchete.io import path_exists
 from mapchete.io.vector import reproject_geometry
 from shapely.geometry import box
-from zarr.storage import FSStore
 
 
 class InputData(base.InputData):
@@ -22,7 +19,7 @@ class InputData(base.InputData):
         """Initialize."""
         super().__init__(input_params, **kwargs)
         self.path = input_params["path"]
-        if not path_exists(self.path):  # pragma: no cover
+        if not self.path.exists():  # pragma: no cover
             raise FileNotFoundError(f"path {self.path} does not exist")
         mapchete_params = self.ds.attrs.get("mapchete")
         if mapchete_params is None:  # pragma: no cover
